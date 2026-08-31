@@ -453,6 +453,37 @@ function shrink(file){
 /* 共有モードで動いているか（ログイン済みのときだけ true） */
 const isCloud = ()=> !!(window.Cloud && Cloud.enabled && Cloud.user());
 
+/* 共有先のエラーを、原因が分かる言葉にする */
+function cloudErrorText(e){
+  const c = (e && (e.code || e.message)) || '';
+  if(c.includes('permission-denied'))
+    return '権限がありません。Firestoreのセキュリティルールを確認してください';
+  if(c.includes('unauthenticated'))
+    return 'ログインが切れました。合い言葉を入れ直してください';
+  if(c.includes('unavailable') || c.includes('network'))
+    return '通信できません。電波が戻ったら自動で送信します';
+  if(c.includes('failed-precondition'))
+    return 'データベースの設定を確認してください（' + c + '）';
+  if(c.includes('not-found'))
+    return 'データベースが見つかりません（Firestoreが作成済みか確認してください）';
+  return '共有できませんでした（' + (c || '原因不明') + '）';
+}
+/* 共有先への書き込み。
+   すぐ失敗したらエラーを投げ、返事が遅いときは「送信待ち」として先に進む
+   （圏外でも作業を止めないため。あとで失敗したらお知らせします） */
+async function cloudWrite(promise){
+  const LATE = Symbol('late');
+  const r = await Promise.race([
+    promise.then(()=> 'done'),
+    new Promise(res=> setTimeout(()=> res(LATE), 2500))
+  ]);
+  if(r === LATE){
+    promise.catch(e=> toast(cloudErrorText(e)));
+    return 'queued';
+  }
+  return 'done';
+}
+
 const urlCache = new Map();
 async function imgUrl(imageId){
   if(!imageId) return null;
@@ -475,8 +506,8 @@ async function saveImage(file){
   const id = 'img_' + uid();
   await idbPut('images', {id, blob});
   if(isCloud()){
-    try{ await Cloud.putPhoto(id, await blobToDataURL(blob)); }
-    catch(e){ toast('写真の共有に失敗しました（電波を確認してください）'); }
+    try{ await cloudWrite(Cloud.putPhoto(id, await blobToDataURL(blob))); }
+    catch(e){ toast('写真：' + cloudErrorText(e)); }
   }
   return id;
 }
@@ -1043,11 +1074,12 @@ async function commitSave(note){
   m.history.unshift({at: Date.now(), note, steps: m.steps.length});
   delete m._isNew; delete m._from;
   const clean = JSON.parse(JSON.stringify(m, (k,v)=> k.startsWith('_') ? undefined : v));
+  let queued = false;
   try{
-    if(isCloud()) await Cloud.saveManual(clean);
+    if(isCloud()) queued = (await cloudWrite(Cloud.saveManual(clean))) === 'queued';
     else await idbPut('manuals', clean);
   }catch(e){
-    toast('保存できませんでした（電波を確認してください）');
+    toast(cloudErrorText(e));
     return;
   }
   dirty = false;
@@ -1059,7 +1091,9 @@ async function commitSave(note){
     await loadAll();
     current = migrate(await idbGet('manuals', m.id));
   }
-  toast(isCloud() ? `保存しました（v${m.history.length}・みんなに反映）` : `保存しました（v${m.history.length}）`);
+  toast(!isCloud() ? `保存しました（v${m.history.length}）`
+        : queued ? `保存しました（v${m.history.length}・電波が戻ったら共有します）`
+                 : `保存しました（v${m.history.length}・みんなに反映）`);
   setView('read');
 }
 function deleteManual(m){
@@ -1319,12 +1353,12 @@ async function saveProgress(m){
   if(i >= 0) manuals[i] = clean;
   if(isCloud()){
     try{
-      await Cloud.patchManual(m.id, {
+      await cloudWrite(Cloud.patchManual(m.id, {
         progress: clean.progress || {},
         progressAt: clean.progressAt || null,
         rounds: clean.rounds || []
-      });
-    }catch(e){ toast('共有できませんでした（電波を確認してください）'); }
+      }));
+    }catch(e){ toast(cloudErrorText(e)); }
   }else{
     await idbPut('manuals', clean);
   }
