@@ -165,6 +165,18 @@ button{cursor:pointer;border:none;background:none}
 .pchip.done{border-color:var(--brand);color:var(--brand-dark);background:var(--brand-tint2)}
 .pchip.on{background:var(--brand);border-color:var(--brand);color:#fff}
 .pchip.done.on{background:var(--brand-dark);border-color:var(--brand-dark);color:#fff}
+.ptiles{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.ptile{display:flex;flex-direction:column;justify-content:center;gap:4px;min-height:80px;
+  padding:14px;border-radius:14px;border:1.5px solid var(--line);background:#fff;
+  box-shadow:var(--shadow);text-align:left}
+.ptile .nm{font-size:17px;font-weight:800;color:var(--text);line-height:1.3}
+.ptile .st{font-size:12px;font-weight:700;color:var(--muted)}
+.ptile.done{background:var(--brand-tint2);border-color:var(--brand)}
+.ptile.done .nm{color:var(--brand-deep)}
+.ptile.done .st{color:var(--brand-dark)}
+.ptile:active{transform:translateY(1px)}
+.crumb{display:inline-flex;align-items:center;gap:7px;background:var(--brand-tint);color:var(--brand-deep);
+  border-radius:999px;padding:8px 14px;font-size:13.5px;font-weight:800;margin-bottom:12px}
 .stepplaces{display:flex;gap:5px;flex-wrap:wrap;margin-top:5px}
 .tag{font-size:11px;font-weight:700;padding:2px 8px;border-radius:999px;background:var(--brand-tint);color:var(--brand-deep)}
 .tag.all{background:#eef2f0;color:var(--muted)}
@@ -390,7 +402,7 @@ let manuals = [];     // 一覧用（新しい順）
 let current = null;   // 編集/閲覧中のマニュアル
 let view = 'list';
 let dirty = false;
-let readSel = 'all';   // 閲覧中に選んでいる場所（'all' = すべて）
+let readSel = null;    // 閲覧中の場所（null = 場所えらび画面 / 'all' = 全手順 / id = その場所）
 
 /* 旧データ（場所が1つのテキスト）を新形式（場所リスト）に変換 */
 function migrate(m){
@@ -439,7 +451,7 @@ function setView(v, opt={}){
   }
 }
 function goHome(){
-  current = null; readSel = 'all'; setView('list');
+  current = null; readSel = null; setView('list');
 }
 /* 編集中は破棄の確認をはさむ */
 function leaveEdit(go){
@@ -451,6 +463,10 @@ function leaveEdit(go){
 }
 $('backBtn').onclick = ()=> leaveEdit(()=>{
   if(view === 'edit' && current && current._from === 'read'){ delete current._from; setView('read'); return; }
+  // 手順を見ているときは、まず「場所えらび」に戻る
+  if(view === 'read' && current && readSel !== null && placesOf(current).length >= 2){
+    readSel = null; renderRead(); return;
+  }
   goHome();
 });
 $('homeBtn').onclick = ()=> leaveEdit(goHome);
@@ -533,7 +549,7 @@ async function openManual(id){
   const rec = await idbGet('manuals', id);
   if(!rec) return;
   current = migrate(rec);
-  readSel = 'all';
+  readSel = null;
   setView('read');
 }
 
@@ -770,54 +786,51 @@ function historyHTML(m){
   return `<ul>${h.map((x,i)=>`
     <li><span class="d">v${h.length-i}　${fmtDateTime(x.at)}</span><br>${esc(x.note)}</li>`).join('')}</ul>`;
 }
+const fmtTime = ts => { const d = new Date(ts); return `${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`; };
+
+/* 閲覧画面：場所が2か所以上なら「場所えらび」→「作業手順」の2段構え */
 function renderRead(){
+  const places = placesOf(current), hasP = places.length >= 2;
+  if(!hasP) readSel = 'all';
+  else if(readSel !== 'all' && readSel !== null && !places.some(p=> p.id === readSel)) readSel = null;
+  if(hasP && readSel === null) renderPlacePicker();
+  else renderSteps();
+}
+
+/* ① 場所えらび画面 */
+function renderPlacePicker(){
   const m = current, el = $('viewRead');
   const places = placesOf(m), prog = m.progress || (m.progress = {});
-  const hasP = places.length >= 2;   // 2か所以上のときだけ対応チェックを出す
-  if(!hasP || !places.some(p=> p.id === readSel)) readSel = 'all';
-
-  const shown = m.steps.filter(s=>
-    !hasP || readSel === 'all' || !(s.placeIds||[]).length || (s.placeIds||[]).includes(readSel));
-  const done = doneCount(m), total = places.length, allDone = hasP && done === total;
+  const done = doneCount(m), total = places.length, allDone = done === total;
+  $('barSub').textContent = `場所をえらんでください（${done}/${total} 完了）`;
 
   el.innerHTML = `
     <h2 class="v-title">${esc(m.title)}</h2>
     <div class="v-meta">
-      ${!hasP && places.length ? `<span class="pill">${esc(places[0].name)}</span>` : ''}
+      <span class="pill gray">${total}か所</span>
       <span class="pill gray">${m.steps.length}手順</span>
       <span class="pill gray">v${(m.history||[]).length}</span>
       <span class="tiny muted">最終更新 ${fmtDateTime(m.updatedAt)}</span>
     </div>
 
-    ${hasP ? `
-      <div class="sec-title" style="margin-top:0">どの場所の対応をしますか？　<span style="color:var(--brand-dark)">${done}/${total} 完了</span></div>
-      <div class="psel">
-        <button class="pchip ${readSel==='all'?'on':''}" data-sel="all">すべて表示</button>
-        ${places.map(p=>`
-          <button class="pchip ${readSel===p.id?'on':''} ${prog[p.id]?'done':''}" data-sel="${p.id}">${prog[p.id]?'✓ ':''}${esc(p.name)}</button>`).join('')}
+    ${allDone ? `
+      <div class="done-panel" style="margin-bottom:18px">
+        <b>🎉 おつかれさまでした！</b>
+        <span>全${total}か所の対応が完了しました${m.progressAt ? '（'+fmtDateTime(m.progressAt)+'）' : ''}</span><br>
+        <button id="resetProg">対応状況をリセット</button>
       </div>` : ''}
 
-    ${shown.length ? shown.map((s,i)=>{
-      const tags = (s.placeIds||[]).map(id=> (places.find(p=> p.id===id)||{}).name).filter(Boolean);
-      return `
-      <div class="v-step">
-        <div class="v-step-head">
-          <div class="stepno">${i+1}</div>
-          <div style="flex:1;min-width:0">
-            <h3>${esc(s.title) || '手順 ' + (i+1)}</h3>
-            ${hasP && readSel === 'all' ? `<div class="stepplaces">${
-              tags.length ? tags.map(t=>`<span class="tag">${esc(t)}</span>`).join('')
-                          : '<span class="tag all">全場所 共通</span>'}</div>` : ''}
-          </div>
-        </div>
-        ${s.imageId ? `<img data-img="${s.imageId}" alt="手順${i+1}">` : ''}
-        ${s.body ? `<div class="txt">${esc(s.body)}</div>` : ''}
-        ${s.caution ? `<div class="caution"><b>⚠️ 注意</b>${esc(s.caution)}</div>` : ''}
-      </div>`; }).join('')
-    : `<div class="empty"><div class="em">📄</div><h2>この場所の手順はまだありません</h2>
-        <div class="tiny">「更新」から手順を追加するか、手順の対象に この場所 を追加してください。</div></div>`}
+    <div class="sec-title" style="margin-top:0">どの場所の対応をしますか？</div>
+    <div class="ptiles">
+      ${places.map(p=>`
+        <button class="ptile ${prog[p.id]?'done':''}" data-place="${p.id}">
+          <span class="nm">${esc(p.name)}</span>
+          <span class="st">${prog[p.id] ? '✓ 済　'+fmtTime(prog[p.id]) : '未対応'}</span>
+        </button>`).join('')}
+    </div>
+    <button class="btn ghost" id="allSteps" style="margin-top:14px">すべての手順をまとめて見る</button>
 
-    ${hasP && (m.rounds||[]).length ? `
+    ${(m.rounds||[]).length ? `
       <div class="sec-title">対応ログ</div>
       <div class="hist logbox"><ul>${m.rounds.slice(0,6).map(r=>`
         <li><span class="d">${fmtDateTime(r.at)}</span>　全${r.n}か所 対応完了</li>`).join('')}</ul></div>` : ''}
@@ -829,41 +842,105 @@ function renderRead(){
       <button class="btn ghost" id="printBtn">🖨 PDF</button>
       <button class="btn ghost" id="shareBtn">↗ 共有</button>
       <button class="btn ghost" id="quickAdd">📷 写真</button>
-    </div>
-  `;
-  hydrateImages(el);
-  el.querySelectorAll('[data-sel]').forEach(b=> b.onclick = ()=>{ readSel = b.dataset.sel; renderRead(); });
-  $('printBtn').onclick = ()=>{
-    if(readSel !== 'all'){ readSel = 'all'; renderRead(); setTimeout(()=> window.print(), 100); }
-    else window.print();
-  };
-  $('shareBtn').onclick = ()=> shareManual(m);
-  $('quickAdd').onclick = ()=>{ current._from = 'read'; setView('edit'); setTimeout(()=> pickPhotos('append'), 150); };
+    </div>`;
 
-  /* ---- 画面下：進捗と対応済チェック ---- */
-  const cur = places.find(p=> p.id === readSel);
+  el.querySelectorAll('[data-place]').forEach(b=> b.onclick = ()=>{ readSel = b.dataset.place; renderRead(); });
+  $('allSteps').onclick = ()=>{ readSel = 'all'; renderRead(); };
+  if($('resetProg')) $('resetProg').onclick = ()=> resetProgress();
+  bindCommonReadButtons(m);
+
   $('fab').innerHTML = `
-    ${hasP ? (allDone ? `
-      <div class="done-panel">
-        <b>🎉 お疲れさまでした！</b>
-        <span>全${total}か所の対応が完了しました${m.progressAt ? '（'+fmtDateTime(m.progressAt)+'）' : ''}</span><br>
-        <button id="resetProg">対応状況をリセット</button>
-      </div>` : `
+    ${allDone ? '' : `
       <div class="prog">
         <div class="prog-top"><b>対応状況</b><span>${done} / ${total} か所 完了</span></div>
         <div class="pbar"><i style="width:${Math.round(done/total*100)}%"></i></div>
         <div class="rest">残り：${places.filter(p=> !prog[p.id]).map(p=> esc(p.name)).join('・')}</div>
-      </div>`) : ''}
+      </div>`}
+    <div class="btnrow"><button class="btn sub" id="editBtn">✎ 更新する</button></div>`;
+  $('editBtn').onclick = ()=>{ current._from = 'read'; setView('edit'); };
+}
+
+/* ② 作業手順の画面（場所を選んだとき / 全手順まとめて見るとき） */
+function renderSteps(){
+  const m = current, el = $('viewRead');
+  const places = placesOf(m), prog = m.progress || (m.progress = {});
+  const hasP = places.length >= 2;
+  const cur = places.find(p=> p.id === readSel);
+  const shown = m.steps.filter(s=>
+    !cur || !(s.placeIds||[]).length || (s.placeIds||[]).includes(cur.id));
+  const done = doneCount(m), total = places.length;
+  $('barSub').textContent = cur ? `📍 ${cur.name}　の作業手順`
+                                : (hasP ? 'すべての手順' : '最終更新 ' + fmtDateTime(m.updatedAt));
+
+  el.innerHTML = `
+    ${hasP ? `<button class="crumb" id="toPicker">← 場所をえらぶ</button>` : ''}
+    <h2 class="v-title">${esc(m.title)}</h2>
+    <div class="v-meta">
+      ${cur ? `<span class="pill">📍 ${esc(cur.name)}</span>${prog[cur.id] ? `<span class="pill">✓ 対応済 ${fmtTime(prog[cur.id])}</span>` : ''}`
+            : (places.length === 1 ? `<span class="pill">${esc(places[0].name)}</span>` : '')}
+      <span class="pill gray">${shown.length}手順</span>
+      ${!cur ? `<span class="pill gray">v${(m.history||[]).length}</span>` : ''}
+    </div>
+
+    ${shown.length ? shown.map((s,i)=>{
+      const tags = (s.placeIds||[]).map(id=> (places.find(p=> p.id===id)||{}).name).filter(Boolean);
+      return `
+      <div class="v-step">
+        <div class="v-step-head">
+          <div class="stepno">${i+1}</div>
+          <div style="flex:1;min-width:0">
+            <h3>${esc(s.title) || '手順 ' + (i+1)}</h3>
+            ${hasP && !cur ? `<div class="stepplaces">${
+              tags.length ? tags.map(t=>`<span class="tag">${esc(t)}</span>`).join('')
+                          : '<span class="tag all">全場所 共通</span>'}</div>` : ''}
+          </div>
+        </div>
+        ${s.imageId ? `<img data-img="${s.imageId}" alt="手順${i+1}">` : ''}
+        ${s.body ? `<div class="txt">${esc(s.body)}</div>` : ''}
+        ${s.caution ? `<div class="caution"><b>⚠️ 注意</b>${esc(s.caution)}</div>` : ''}
+      </div>`; }).join('')
+    : `<div class="empty"><div class="em">📄</div><h2>この場所の手順はまだありません</h2>
+        <div class="tiny">「更新」から手順を追加するか、手順の対象に この場所 を追加してください。</div></div>`}
+
+    ${!hasP ? `
+      <div class="sec-title">改訂履歴</div>
+      <div class="hist">${historyHTML(m)}</div>` : ''}
+
+    <div class="btnrow noprint" style="margin-top:18px">
+      <button class="btn ghost" id="printBtn">🖨 PDF</button>
+      <button class="btn ghost" id="shareBtn">↗ 共有</button>
+      <button class="btn ghost" id="quickAdd">📷 写真</button>
+    </div>`;
+
+  hydrateImages(el);
+  if($('toPicker')) $('toPicker').onclick = ()=>{ readSel = null; renderRead(); };
+  bindCommonReadButtons(m);
+
+  $('fab').innerHTML = `
+    ${cur ? `
+      <div class="prog">
+        <div class="prog-top"><b>対応状況</b><span>${done} / ${total} か所 完了</span></div>
+        <div class="pbar"><i style="width:${Math.round(done/total*100)}%"></i></div>
+      </div>` : ''}
     <div class="btnrow">
-      ${hasP && cur
+      ${cur
         ? `<button class="btn ${prog[cur.id]?'sub':''}" id="markBtn" style="flex:1;min-width:0">${
-             prog[cur.id] ? `✓ ${esc(cur.name)}：対応済（取消）` : `✓ ${esc(cur.name)} を対応済にする`}</button>
+             prog[cur.id] ? `✓ ${esc(cur.name)}：対応済（取消）` : `✓ ${esc(cur.name)} 済にする`}</button>
            <button class="btn sub" id="editBtn" style="flex:none;width:88px">✎ 更新</button>`
         : `<button class="btn sub" id="editBtn">✎ 更新する</button>`}
     </div>`;
   $('editBtn').onclick = ()=>{ current._from = 'read'; setView('edit'); };
   if($('markBtn')) $('markBtn').onclick = ()=> markPlace(cur.id);
-  if($('resetProg')) $('resetProg').onclick = ()=> resetProgress();
+}
+
+/* 閲覧画面で共通のボタン */
+function bindCommonReadButtons(m){
+  $('printBtn').onclick = ()=>{
+    if(readSel !== 'all'){ readSel = 'all'; renderRead(); setTimeout(()=> window.print(), 120); }
+    else window.print();
+  };
+  $('shareBtn').onclick = ()=> shareManual(m);
+  $('quickAdd').onclick = ()=>{ current._from = 'read'; setView('edit'); setTimeout(()=> pickPhotos('append'), 150); };
 }
 
 /* 対応済のチェック（改訂履歴とは別。端末にすぐ保存されます） */
@@ -878,16 +955,16 @@ async function markPlace(pid){
     toast(`${p.name} の「対応済」を取り消しました`);
   }else{
     prog[pid] = Date.now();
-    const next = places.find(x=> !prog[x.id]);
-    if(!wasAll && !next){
+    const rest = places.filter(x=> !prog[x.id]).length;
+    if(!wasAll && !rest){
       m.progressAt = Date.now();
       m.rounds = m.rounds || [];
       m.rounds.unshift({at: Date.now(), n: places.length});
-      /* 完了パネル自体がねぎらいメッセージなので、ここではトーストを出さない */
+      /* 「おつかれさまでした！」は場所えらび画面に大きく出すので、トーストは出さない */
     }else{
-      toast(next ? `${p.name} 完了　→ 次は「${next.name}」` : `${p.name} 完了`);
-      if(next) readSel = next.id;
+      toast(`${p.name} 完了　残り${rest}か所`);
     }
+    readSel = null;   // 場所えらびに戻る
   }
   await saveProgress(m);
   renderRead();
@@ -896,7 +973,7 @@ function resetProgress(){
   confirmSheet('対応状況をリセットしますか？', '全場所のチェックが外れ、次の対応に使えます。対応ログは残ります。', 'リセットする', async ()=>{
     current.progress = {};
     delete current.progressAt;
-    readSel = 'all';
+    readSel = null;
     await saveProgress(current);
     renderRead();
     toast('対応状況をリセットしました');
