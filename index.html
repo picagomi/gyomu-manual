@@ -251,6 +251,7 @@ button{cursor:pointer;border:none;background:none}
     <div class="bar-row">
       <button class="iconbtn hidden" id="backBtn" aria-label="戻る">‹</button>
       <h1 id="barTitle">NagomiResort マニュアル</h1>
+      <button class="iconbtn hidden" id="homeBtn" aria-label="ホーム（一覧）に戻る" title="ホームに戻る">🏠</button>
       <button class="iconbtn" id="menuBtn" aria-label="メニュー">⋯</button>
     </div>
     <div class="sub" id="barSub">写真をアップするだけ。スマホで手順書。</div>
@@ -417,6 +418,7 @@ function setView(v, opt={}){
   ['viewList','viewEdit','viewRead'].forEach(id=> $(id).classList.add('hidden'));
   $('searchWrap').classList.toggle('hidden', v !== 'list');
   $('backBtn').classList.toggle('hidden', v === 'list');
+  $('homeBtn').classList.toggle('hidden', v === 'list');
   $('menuBtn').classList.toggle('hidden', v !== 'list');
   window.scrollTo(0,0);
   if(v === 'list'){
@@ -436,14 +438,22 @@ function setView(v, opt={}){
     renderRead();
   }
 }
-$('backBtn').onclick = ()=>{
+function goHome(){
+  current = null; readSel = 'all'; setView('list');
+}
+/* 編集中は破棄の確認をはさむ */
+function leaveEdit(go){
   if(view === 'edit' && dirty){
-    confirmSheet('保存せずに戻りますか？','編集中の内容は破棄されます。','破棄して戻る', ()=>{ dirty=false; current=null; setView('list'); });
+    confirmSheet('保存せずに移動しますか？','編集中の内容は破棄されます。','破棄して移動', ()=>{ dirty = false; go(); });
     return;
   }
-  if(view === 'edit' && current && current._from === 'read'){ setView('read'); return; }
-  current = null; setView('list');
-};
+  go();
+}
+$('backBtn').onclick = ()=> leaveEdit(()=>{
+  if(view === 'edit' && current && current._from === 'read'){ delete current._from; setView('read'); return; }
+  goHome();
+});
+$('homeBtn').onclick = ()=> leaveEdit(goHome);
 
 /* =========================================================
    一覧
