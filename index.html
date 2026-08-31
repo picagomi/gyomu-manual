@@ -246,6 +246,16 @@ button{cursor:pointer;border:none;background:none}
   border-radius:12px;color:#7c4a03;font-size:14.5px;white-space:pre-wrap;
 }
 .caution b{color:var(--warn);display:block;font-size:12px;letter-spacing:.06em;margin-bottom:3px}
+.fold{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);
+  margin-top:16px;overflow:hidden;box-shadow:var(--shadow)}
+.fold summary{list-style:none;cursor:pointer;display:flex;align-items:center;gap:9px;
+  padding:13px 15px;font-size:13px;font-weight:800;color:var(--muted);letter-spacing:.06em}
+.fold summary::-webkit-details-marker{display:none}
+.fold summary .fb{background:#eef2f0;color:var(--muted);border-radius:999px;padding:2px 9px;font-size:11px}
+.fold summary .fc{margin-left:auto;color:var(--brand);font-size:13px;transition:transform .2s}
+.fold[open] summary{border-bottom:1px solid var(--line);color:var(--brand-deep)}
+.fold[open] summary .fc{transform:rotate(180deg)}
+.fold-body{padding:2px 15px 6px}
 .hist{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:6px 14px}
 .hist li{padding:9px 0;border-bottom:1px dashed var(--line);font-size:13.5px;list-style:none}
 .hist li:last-child{border-bottom:none}
@@ -857,8 +867,8 @@ function renderEdit(){
     <button class="btn sub" id="addPhoto" style="margin-top:4px">＋　写真を追加する</button>
 
     ${m._isNew ? '' : `
-      <div class="sec-title">改訂履歴</div>
-      <div class="hist">${historyHTML(m)}</div>
+      ${foldBlock('改訂履歴', `v${(m.history||[]).length}`,
+        `<div class="hist" style="border:none;padding:0">${historyHTML(m)}</div>`)}
       <button class="btn danger" id="delMan" style="margin-top:18px">このマニュアルを削除</button>`}
   `;
   hydrateImages(el);
@@ -975,6 +985,13 @@ function deleteManual(m){
 /* =========================================================
    閲覧画面（現場で見る用）
    ========================================================= */
+/* 開閉できるブロック（初期状態は閉じる） */
+function foldBlock(title, badge, inner){
+  return `<details class="fold">
+    <summary><span>${title}</span>${badge ? `<span class="fb">${badge}</span>` : ''}<span class="fc">▼</span></summary>
+    <div class="fold-body">${inner}</div>
+  </details>`;
+}
 function historyHTML(m){
   const h = m.history || [];
   if(!h.length) return '<div class="tiny muted" style="padding:8px 0">まだ履歴はありません</div>';
@@ -1025,13 +1042,12 @@ function renderPlacePicker(){
     </div>
     <button class="btn ghost" id="allSteps" style="margin-top:14px">すべての手順をまとめて見る</button>
 
-    ${(m.rounds||[]).length ? `
-      <div class="sec-title">対応ログ</div>
-      <div class="hist logbox"><ul>${m.rounds.slice(0,6).map(r=>`
-        <li><span class="d">${fmtDateTime(r.at)}</span>　全${r.n}か所 対応完了</li>`).join('')}</ul></div>` : ''}
+    ${(m.rounds||[]).length ? foldBlock('対応ログ', `${m.rounds.length}回`,
+      `<div class="hist logbox" style="border:none;padding:0"><ul>${m.rounds.slice(0,20).map(r=>`
+        <li><span class="d">${fmtDateTime(r.at)}</span>　全${r.n}か所 対応完了</li>`).join('')}</ul></div>`) : ''}
 
-    <div class="sec-title">改訂履歴</div>
-    <div class="hist">${historyHTML(m)}</div>
+    ${foldBlock('改訂履歴', `v${(m.history||[]).length}`,
+      `<div class="hist" style="border:none;padding:0">${historyHTML(m)}</div>`)}
 
     <div class="btnrow noprint" style="margin-top:18px">
       <button class="btn ghost" id="printBtn">🖨 PDF</button>
@@ -1102,9 +1118,8 @@ function renderSteps(){
     : `<div class="empty"><div class="em">📄</div><h2>この場所の手順はまだありません</h2>
         <div class="tiny">「更新」から手順を追加するか、手順の対象に この場所 を追加してください。</div></div>`}
 
-    ${!hasP ? `
-      <div class="sec-title">改訂履歴</div>
-      <div class="hist">${historyHTML(m)}</div>` : ''}
+    ${!hasP ? foldBlock('改訂履歴', `v${(m.history||[]).length}`,
+      `<div class="hist" style="border:none;padding:0">${historyHTML(m)}</div>`) : ''}
 
     <div class="btnrow noprint" style="margin-top:18px">
       <button class="btn ghost" id="printBtn">🖨 PDF</button>
@@ -1151,8 +1166,9 @@ async function zoomImage(id){
 /* 閲覧画面で共通のボタン */
 function bindCommonReadButtons(m){
   $('printBtn').onclick = ()=>{
-    if(readSel !== 'all'){ readSel = 'all'; renderRead(); setTimeout(()=> window.print(), 120); }
-    else window.print();
+    const openFolds = ()=> document.querySelectorAll('details.fold').forEach(d=> d.open = true);
+    if(readSel !== 'all'){ readSel = 'all'; renderRead(); setTimeout(()=>{ openFolds(); window.print(); }, 140); }
+    else { openFolds(); window.print(); }
   };
   $('shareBtn').onclick = ()=> shareManual(m);
   $('quickAdd').onclick = ()=>{ current._from = 'read'; setView('edit'); setTimeout(()=> pickPhotos('append'), 150); };
