@@ -6,9 +6,9 @@
 <meta name="theme-color" content="#15803d">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<meta name="apple-mobile-web-app-title" content="現場マニュアル">
+<meta name="apple-mobile-web-app-title" content="NagomiResort">
 <link rel="manifest" href="manifest.json">
-<title>現場マニュアル｜写真でつくる業務マニュアル</title>
+<title>NagomiResort マニュアル｜写真でつくる業務マニュアル</title>
 <style>
 :root{
   --brand:#16a34a;
@@ -155,6 +155,39 @@ button{cursor:pointer;border:none;background:none}
 .step-body{padding:12px 14px}
 .step-body .field:last-child{margin-bottom:0}
 
+/* ---------- 場所（複数拠点）と対応チェック ---------- */
+.chip.on{background:var(--brand);border-color:var(--brand);color:#fff}
+.chip .x{margin-left:7px;font-weight:900;color:#fff;opacity:.85}
+.psel{display:flex;gap:8px;overflow-x:auto;padding:2px 2px 10px;margin:0 -2px 4px}
+.psel::-webkit-scrollbar{display:none}
+.pchip{flex:none;padding:9px 15px;border-radius:999px;border:1.5px solid var(--line);background:#fff;
+  font-size:14px;font-weight:800;color:var(--muted);white-space:nowrap}
+.pchip.done{border-color:var(--brand);color:var(--brand-dark);background:var(--brand-tint2)}
+.pchip.on{background:var(--brand);border-color:var(--brand);color:#fff}
+.pchip.done.on{background:var(--brand-dark);border-color:var(--brand-dark);color:#fff}
+.stepplaces{display:flex;gap:5px;flex-wrap:wrap;margin-top:5px}
+.tag{font-size:11px;font-weight:700;padding:2px 8px;border-radius:999px;background:var(--brand-tint);color:var(--brand-deep)}
+.tag.all{background:#eef2f0;color:var(--muted)}
+.prog{background:#fff;border:1px solid var(--line);border-radius:14px;padding:11px 13px;margin-bottom:10px;
+  box-shadow:var(--shadow)}
+.prog-top{display:flex;align-items:center;justify-content:space-between;font-size:13px;font-weight:800;margin-bottom:8px}
+.prog-top span{color:var(--brand-dark)}
+.pbar{height:9px;border-radius:999px;background:#e8efea;overflow:hidden}
+.pbar i{display:block;height:100%;border-radius:999px;background:linear-gradient(90deg,var(--brand),#4ade80);
+  transition:width .35s ease}
+.prog .rest{font-size:11.5px;color:var(--muted);margin-top:8px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.done-panel{background:linear-gradient(160deg,var(--brand),var(--brand-dark));color:#fff;border-radius:14px;
+  padding:14px 16px;margin-bottom:10px;text-align:center;box-shadow:0 6px 20px rgba(21,128,61,.35);
+  animation:pop .3s ease-out}
+.done-panel b{display:block;font-size:19px;font-weight:900;letter-spacing:.02em}
+.done-panel span{font-size:12.5px;opacity:.92}
+.done-panel button{margin-top:11px;background:rgba(255,255,255,.2);color:#fff;border-radius:10px;
+  padding:8px 15px;font-size:12.5px;font-weight:800}
+@keyframes pop{from{transform:scale(.94);opacity:0}to{transform:none;opacity:1}}
+.logbox li{list-style:none;padding:9px 0;border-bottom:1px dashed var(--line);font-size:13.5px}
+.logbox li:last-child{border-bottom:none}
+.logbox ul{margin:0;padding:0}
+
 /* ---------- Viewer ---------- */
 .v-hero{border-radius:var(--radius);overflow:hidden;border:1px solid var(--line);box-shadow:var(--shadow);
   background:#0d1a13;margin-bottom:14px}
@@ -201,7 +234,7 @@ button{cursor:pointer;border:none;background:none}
 
 /* ---------- Print ---------- */
 @media print{
-  .bar,.fabwrap,.noprint{display:none!important}
+  .bar,.fabwrap,.noprint,.psel{display:none!important}
   body{background:#fff}
   .app{max-width:none}
   .page{padding:0}
@@ -217,7 +250,7 @@ button{cursor:pointer;border:none;background:none}
   <header class="bar" id="bar">
     <div class="bar-row">
       <button class="iconbtn hidden" id="backBtn" aria-label="戻る">‹</button>
-      <h1 id="barTitle">現場マニュアル</h1>
+      <h1 id="barTitle">NagomiResort マニュアル</h1>
       <button class="iconbtn" id="menuBtn" aria-label="メニュー">⋯</button>
     </div>
     <div class="sub" id="barSub">写真をアップするだけ。スマホで手順書。</div>
@@ -356,9 +389,25 @@ let manuals = [];     // 一覧用（新しい順）
 let current = null;   // 編集/閲覧中のマニュアル
 let view = 'list';
 let dirty = false;
+let readSel = 'all';   // 閲覧中に選んでいる場所（'all' = すべて）
+
+/* 旧データ（場所が1つのテキスト）を新形式（場所リスト）に変換 */
+function migrate(m){
+  if(!Array.isArray(m.places)){
+    const old = (m.place || '').trim();
+    m.places = old ? [{id:'pl_'+uid(), name: old}] : [];
+  }
+  delete m.place;
+  if(!m.progress || typeof m.progress !== 'object') m.progress = {};
+  if(!Array.isArray(m.rounds)) m.rounds = [];
+  (m.steps || []).forEach(s=>{ if(!Array.isArray(s.placeIds)) s.placeIds = []; });
+  return m;
+}
+const placesOf = m => m.places || [];
+const doneCount = m => placesOf(m).filter(p=> (m.progress||{})[p.id]).length;
 
 async function loadAll(){
-  manuals = (await idbAll('manuals')) || [];
+  manuals = ((await idbAll('manuals')) || []).map(migrate);
   manuals.sort((a,b)=> b.updatedAt - a.updatedAt);
 }
 
@@ -371,7 +420,7 @@ function setView(v, opt={}){
   $('menuBtn').classList.toggle('hidden', v !== 'list');
   window.scrollTo(0,0);
   if(v === 'list'){
-    $('barTitle').textContent = '現場マニュアル';
+    $('barTitle').textContent = 'NagomiResort マニュアル';
     $('barSub').textContent = '写真をアップするだけ。スマホで手順書。';
     $('viewList').classList.remove('hidden');
     renderList();
@@ -403,7 +452,8 @@ function renderList(){
   const q = ($('q').value || '').trim().toLowerCase();
   const list = manuals.filter(m=>{
     if(!q) return true;
-    const hay = [m.title, m.place, ...(m.steps||[]).map(s=> s.title+' '+s.body+' '+s.caution)].join(' ').toLowerCase();
+    const hay = [m.title, ...placesOf(m).map(p=> p.name),
+                 ...(m.steps||[]).map(s=> s.title+' '+s.body+' '+s.caution)].join(' ').toLowerCase();
     return hay.includes(q);
   });
 
@@ -420,6 +470,10 @@ function renderList(){
           <li><b>③ 各写真に手順・注意点を書く</b></li>
           <li><b>④ 保存</b> → 以後は追記して日々更新</li>
         </ol>
+        <div class="tiny" style="margin-top:12px;line-height:1.7">
+          受付・コテージ・ヴィラなど<b>複数の場所</b>を登録すると、<br>
+          場所ごとに手順を出し分けて「対応済」チェックができます。
+        </div>
       </div>`;
   }else if(!list.length){
     el.innerHTML = `<div class="empty"><div class="em">🔍</div><h2>見つかりませんでした</h2>
@@ -431,6 +485,7 @@ function renderList(){
       ${list.map(m=>{
         const cover = (m.steps||[]).find(s=> s.imageId);
         const isNew = Date.now()-m.updatedAt < 3*86400000;
+        const pl = placesOf(m), dn = doneCount(m);
         return `
         <div class="card">
           <button class="mcard" data-open="${m.id}">
@@ -440,10 +495,14 @@ function renderList(){
             <div class="body">
               <h3>${esc(m.title)}</h3>
               <div class="meta">
-                ${m.place ? `<span class="pill">${esc(m.place)}</span>` : ''}
+                ${pl.slice(0,2).map(p=>`<span class="pill">${esc(p.name)}</span>`).join('')}
+                ${pl.length>2 ? `<span class="pill gray">他${pl.length-2}か所</span>` : ''}
                 <span class="pill gray">${(m.steps||[]).length}手順</span>
                 ${isNew ? `<span class="pill new">更新</span>` : ''}
               </div>
+              ${pl.length >= 2 && dn ? `<div class="meta" style="margin-top:5px">${
+                dn === pl.length ? `<span class="pill">✓ 全${pl.length}か所 対応完了</span>`
+                                 : `<span class="pill new">対応中 ${dn}/${pl.length}か所</span>`}</div>` : ''}
               <div class="meta" style="margin-top:5px">
                 <span>改訂 v${(m.history||[]).length} ・ ${ago(m.updatedAt)}</span>
               </div>
@@ -461,8 +520,10 @@ function renderList(){
 $('q').oninput = ()=> { if(view==='list') renderList(); };
 
 async function openManual(id){
-  current = await idbGet('manuals', id);
-  if(!current) return;
+  const rec = await idbGet('manuals', id);
+  if(!rec) return;
+  current = migrate(rec);
+  readSel = 'all';
   setView('read');
 }
 
@@ -489,8 +550,10 @@ $('filePick').onchange = async e=>{
     current = {
       id: 'man_' + uid(),
       title: '',
-      place: '',
-      steps: ids.map((imageId,i)=> ({id:'st_'+uid(), imageId, title:'', body:'', caution:'', updatedAt:Date.now()})),
+      places: [],
+      progress: {},
+      rounds: [],
+      steps: ids.map(imageId=> ({id:'st_'+uid(), imageId, title:'', body:'', caution:'', placeIds:[], updatedAt:Date.now()})),
       createdAt: Date.now(),
       updatedAt: Date.now(),
       history: [],
@@ -499,7 +562,7 @@ $('filePick').onchange = async e=>{
     setView('edit', {isNew:true});
     toast(`${ids.length}枚の写真を読み込みました`);
   }else if(pickMode === 'append'){
-    ids.forEach(imageId=> current.steps.push({id:'st_'+uid(), imageId, title:'', body:'', caution:'', updatedAt:Date.now()}));
+    ids.forEach(imageId=> current.steps.push({id:'st_'+uid(), imageId, title:'', body:'', caution:'', placeIds:[], updatedAt:Date.now()}));
     dirty = true; renderEdit();
     toast(`${ids.length}枚を追加しました`);
   }else if(pickMode && pickMode.replace){
@@ -512,8 +575,8 @@ $('filePick').onchange = async e=>{
 /* =========================================================
    編集画面
    ========================================================= */
-const TITLE_CHIPS = ['給湯器の操作','リモコン操作','日常点検','開店準備','清掃手順','緊急時の対応'];
-const PLACE_CHIPS = ['1号棟','管理棟','客室','厨房','屋外設備','事務所'];
+const TITLE_CHIPS = ['停電時復旧マニュアル','給湯器の操作','日常点検','開店準備','清掃手順','緊急時の対応'];
+const PLACE_CHIPS = ['受付','コテージ','ヴィラ','カフェ','ドッグスパ','ドッグラン','753カフェ','管理棟','厨房'];
 
 function renderEdit(){
   const m = current;
@@ -525,9 +588,18 @@ function renderEdit(){
       <div class="chips" id="titleChips">${TITLE_CHIPS.map(c=>`<button class="chip" data-t="${c}">${c}</button>`).join('')}</div>
     </div>
     <div class="field">
-      <label for="fPlace">場所・設備名 <span class="muted tiny">（任意）</span></label>
-      <input type="text" id="fPlace" placeholder="例：屋外設備 / PURPOSE GS-2402W-1" value="${esc(m.place)}">
-      <div class="chips" id="placeChips">${PLACE_CHIPS.map(c=>`<button class="chip" data-p="${c}">${c}</button>`).join('')}</div>
+      <label>対象の場所 <span class="muted tiny">（複数OK・場所ごとに対応済チェックができます）</span></label>
+      <div class="chips" id="placeList">
+        ${m.places.length
+          ? m.places.map(p=>`<span class="chip on">${esc(p.name)}<button class="x" data-rmp="${p.id}" aria-label="はずす">×</button></span>`).join('')
+          : `<span class="tiny muted">未設定（1か所だけの手順書ならそのままでOK）</span>`}
+      </div>
+      <div style="display:flex;gap:8px;margin-top:9px">
+        <input type="text" id="fPlaceNew" placeholder="場所を追加（例：受付）" style="flex:1;min-width:0">
+        <button class="btn sm sub" id="addPlace" style="flex:none">追加</button>
+      </div>
+      <div class="chips">${PLACE_CHIPS.filter(c=> !m.places.some(p=> p.name === c))
+        .map(c=>`<button class="chip" data-p="${c}">＋${c}</button>`).join('')}</div>
     </div>
 
     <div class="sec-title">手順（写真 ${m.steps.length} 枚）</div>
@@ -557,6 +629,14 @@ function renderEdit(){
             <label>⚠️ 注意点 <span class="muted tiny">（任意）</span></label>
             <textarea data-f="caution" data-id="${s.id}" placeholder="例：使用中に他の人が温度を変えないこと。やけど注意。">${esc(s.caution)}</textarea>
           </div>
+          ${m.places.length >= 2 ? `
+          <div class="field" style="margin-bottom:0">
+            <label>この手順の対象 <span class="muted tiny">（選ばなければ全場所 共通）</span></label>
+            <div class="chips">
+              <button class="chip ${!(s.placeIds||[]).length?'on':''}" data-sp="${s.id}" data-pid="">全場所 共通</button>
+              ${m.places.map(p=>`<button class="chip ${(s.placeIds||[]).includes(p.id)?'on':''}" data-sp="${s.id}" data-pid="${p.id}">${esc(p.name)}</button>`).join('')}
+            </div>
+          </div>` : ''}
         </div>
       </div>`).join('')}
 
@@ -570,9 +650,40 @@ function renderEdit(){
   hydrateImages(el);
 
   $('fTitle').oninput = e=>{ m.title = e.target.value; dirty = true; };
-  $('fPlace').oninput = e=>{ m.place = e.target.value; dirty = true; };
   el.querySelectorAll('[data-t]').forEach(b=> b.onclick = ()=>{ m.title = b.dataset.t; $('fTitle').value = m.title; dirty = true; });
-  el.querySelectorAll('[data-p]').forEach(b=> b.onclick = ()=>{ m.place = b.dataset.p; $('fPlace').value = m.place; dirty = true; });
+
+  const addPlace = name=>{
+    name = (name || '').trim();
+    if(!name) return;
+    if(m.places.some(p=> p.name === name)){ toast('すでに追加されています'); return; }
+    m.places.push({id:'pl_'+uid(), name});
+    dirty = true; renderEdit();
+    const inp = $('fPlaceNew'); if(inp){ inp.value = ''; inp.focus(); }
+  };
+  $('addPlace').onclick = ()=> addPlace($('fPlaceNew').value);
+  $('fPlaceNew').onkeydown = e=>{ if(e.key === 'Enter'){ e.preventDefault(); addPlace(e.target.value); } };
+  el.querySelectorAll('[data-p]').forEach(b=> b.onclick = ()=> addPlace(b.dataset.p));
+  el.querySelectorAll('[data-rmp]').forEach(b=> b.onclick = ()=>{
+    const id = b.dataset.rmp;
+    m.places = m.places.filter(p=> p.id !== id);
+    m.steps.forEach(s=> s.placeIds = (s.placeIds||[]).filter(x=> x !== id));
+    if(m.progress) delete m.progress[id];
+    dirty = true; renderEdit();
+  });
+  el.querySelectorAll('[data-sp]').forEach(b=> b.onclick = ()=>{
+    const s = m.steps.find(x=> x.id === b.dataset.sp);
+    if(!s) return;
+    const pid = b.dataset.pid;
+    s.placeIds = s.placeIds || [];
+    if(!pid) s.placeIds = [];
+    else if(s.placeIds.includes(pid)) s.placeIds = s.placeIds.filter(x=> x !== pid);
+    else s.placeIds.push(pid);
+    s.updatedAt = Date.now(); dirty = true;
+    b.closest('.step').querySelectorAll('[data-sp]').forEach(c=>{
+      const cp = c.dataset.pid;
+      c.classList.toggle('on', cp ? s.placeIds.includes(cp) : s.placeIds.length === 0);
+    });
+  });
 
   el.querySelectorAll('[data-f]').forEach(inp=>{
     inp.oninput = e=>{
@@ -618,7 +729,8 @@ function saveManual(){
 async function commitSave(note){
   const m = current;
   m.title = m.title.trim();
-  m.place = (m.place||'').trim();
+  m.places = (m.places||[]).filter(p=> (p.name||'').trim());
+  delete m.place;
   m.updatedAt = Date.now();
   m.history = m.history || [];
   m.history.unshift({at: Date.now(), note, steps: m.steps.length});
@@ -650,50 +762,151 @@ function historyHTML(m){
 }
 function renderRead(){
   const m = current, el = $('viewRead');
+  const places = placesOf(m), prog = m.progress || (m.progress = {});
+  const hasP = places.length >= 2;   // 2か所以上のときだけ対応チェックを出す
+  if(!hasP || !places.some(p=> p.id === readSel)) readSel = 'all';
+
+  const shown = m.steps.filter(s=>
+    !hasP || readSel === 'all' || !(s.placeIds||[]).length || (s.placeIds||[]).includes(readSel));
+  const done = doneCount(m), total = places.length, allDone = hasP && done === total;
+
   el.innerHTML = `
     <h2 class="v-title">${esc(m.title)}</h2>
     <div class="v-meta">
-      ${m.place ? `<span class="pill">${esc(m.place)}</span>` : ''}
+      ${!hasP && places.length ? `<span class="pill">${esc(places[0].name)}</span>` : ''}
       <span class="pill gray">${m.steps.length}手順</span>
       <span class="pill gray">v${(m.history||[]).length}</span>
       <span class="tiny muted">最終更新 ${fmtDateTime(m.updatedAt)}</span>
     </div>
 
-    ${m.steps.map((s,i)=>`
+    ${hasP ? `
+      <div class="sec-title" style="margin-top:0">どの場所の対応をしますか？　<span style="color:var(--brand-dark)">${done}/${total} 完了</span></div>
+      <div class="psel">
+        <button class="pchip ${readSel==='all'?'on':''}" data-sel="all">すべて表示</button>
+        ${places.map(p=>`
+          <button class="pchip ${readSel===p.id?'on':''} ${prog[p.id]?'done':''}" data-sel="${p.id}">${prog[p.id]?'✓ ':''}${esc(p.name)}</button>`).join('')}
+      </div>` : ''}
+
+    ${shown.length ? shown.map((s,i)=>{
+      const tags = (s.placeIds||[]).map(id=> (places.find(p=> p.id===id)||{}).name).filter(Boolean);
+      return `
       <div class="v-step">
         <div class="v-step-head">
           <div class="stepno">${i+1}</div>
-          <h3>${esc(s.title) || '手順 ' + (i+1)}</h3>
+          <div style="flex:1;min-width:0">
+            <h3>${esc(s.title) || '手順 ' + (i+1)}</h3>
+            ${hasP && readSel === 'all' ? `<div class="stepplaces">${
+              tags.length ? tags.map(t=>`<span class="tag">${esc(t)}</span>`).join('')
+                          : '<span class="tag all">全場所 共通</span>'}</div>` : ''}
+          </div>
         </div>
         ${s.imageId ? `<img data-img="${s.imageId}" alt="手順${i+1}">` : ''}
         ${s.body ? `<div class="txt">${esc(s.body)}</div>` : ''}
         ${s.caution ? `<div class="caution"><b>⚠️ 注意</b>${esc(s.caution)}</div>` : ''}
-      </div>`).join('')}
+      </div>`; }).join('')
+    : `<div class="empty"><div class="em">📄</div><h2>この場所の手順はまだありません</h2>
+        <div class="tiny">「更新」から手順を追加するか、手順の対象に この場所 を追加してください。</div></div>`}
+
+    ${hasP && (m.rounds||[]).length ? `
+      <div class="sec-title">対応ログ</div>
+      <div class="hist logbox"><ul>${m.rounds.slice(0,6).map(r=>`
+        <li><span class="d">${fmtDateTime(r.at)}</span>　全${r.n}か所 対応完了</li>`).join('')}</ul></div>` : ''}
 
     <div class="sec-title">改訂履歴</div>
     <div class="hist">${historyHTML(m)}</div>
 
     <div class="btnrow noprint" style="margin-top:18px">
-      <button class="btn ghost" id="printBtn">🖨 印刷 / PDF</button>
+      <button class="btn ghost" id="printBtn">🖨 PDF</button>
       <button class="btn ghost" id="shareBtn">↗ 共有</button>
+      <button class="btn ghost" id="quickAdd">📷 写真</button>
     </div>
   `;
   hydrateImages(el);
-  $('printBtn').onclick = ()=> window.print();
+  el.querySelectorAll('[data-sel]').forEach(b=> b.onclick = ()=>{ readSel = b.dataset.sel; renderRead(); });
+  $('printBtn').onclick = ()=>{
+    if(readSel !== 'all'){ readSel = 'all'; renderRead(); setTimeout(()=> window.print(), 100); }
+    else window.print();
+  };
   $('shareBtn').onclick = ()=> shareManual(m);
+  $('quickAdd').onclick = ()=>{ current._from = 'read'; setView('edit'); setTimeout(()=> pickPhotos('append'), 150); };
 
+  /* ---- 画面下：進捗と対応済チェック ---- */
+  const cur = places.find(p=> p.id === readSel);
   $('fab').innerHTML = `
+    ${hasP ? (allDone ? `
+      <div class="done-panel">
+        <b>🎉 お疲れさまでした！</b>
+        <span>全${total}か所の対応が完了しました${m.progressAt ? '（'+fmtDateTime(m.progressAt)+'）' : ''}</span><br>
+        <button id="resetProg">対応状況をリセット</button>
+      </div>` : `
+      <div class="prog">
+        <div class="prog-top"><b>対応状況</b><span>${done} / ${total} か所 完了</span></div>
+        <div class="pbar"><i style="width:${Math.round(done/total*100)}%"></i></div>
+        <div class="rest">残り：${places.filter(p=> !prog[p.id]).map(p=> esc(p.name)).join('・')}</div>
+      </div>`) : ''}
     <div class="btnrow">
-      <button class="btn sub" id="quickAdd" style="flex:1">📷 写真を追加</button>
-      <button class="btn" id="editBtn" style="flex:1">✎ 更新する</button>
+      ${hasP && cur
+        ? `<button class="btn ${prog[cur.id]?'sub':''}" id="markBtn" style="flex:1;min-width:0">${
+             prog[cur.id] ? `✓ ${esc(cur.name)}：対応済（取消）` : `✓ ${esc(cur.name)} を対応済にする`}</button>
+           <button class="btn sub" id="editBtn" style="flex:none;width:88px">✎ 更新</button>`
+        : `<button class="btn sub" id="editBtn">✎ 更新する</button>`}
     </div>`;
   $('editBtn').onclick = ()=>{ current._from = 'read'; setView('edit'); };
-  $('quickAdd').onclick = ()=>{ current._from = 'read'; setView('edit'); setTimeout(()=> pickPhotos('append'), 150); };
+  if($('markBtn')) $('markBtn').onclick = ()=> markPlace(cur.id);
+  if($('resetProg')) $('resetProg').onclick = ()=> resetProgress();
+}
+
+/* 対応済のチェック（改訂履歴とは別。端末にすぐ保存されます） */
+async function markPlace(pid){
+  const m = current, places = placesOf(m), prog = m.progress || (m.progress = {});
+  const p = places.find(x=> x.id === pid);
+  if(!p) return;
+  const wasAll = places.length > 0 && doneCount(m) === places.length;
+
+  if(prog[pid]){
+    delete prog[pid];
+    toast(`${p.name} の「対応済」を取り消しました`);
+  }else{
+    prog[pid] = Date.now();
+    const next = places.find(x=> !prog[x.id]);
+    if(!wasAll && !next){
+      m.progressAt = Date.now();
+      m.rounds = m.rounds || [];
+      m.rounds.unshift({at: Date.now(), n: places.length});
+      /* 完了パネル自体がねぎらいメッセージなので、ここではトーストを出さない */
+    }else{
+      toast(next ? `${p.name} 完了　→ 次は「${next.name}」` : `${p.name} 完了`);
+      if(next) readSel = next.id;
+    }
+  }
+  await saveProgress(m);
+  renderRead();
+}
+function resetProgress(){
+  confirmSheet('対応状況をリセットしますか？', '全場所のチェックが外れ、次の対応に使えます。対応ログは残ります。', 'リセットする', async ()=>{
+    current.progress = {};
+    delete current.progressAt;
+    readSel = 'all';
+    await saveProgress(current);
+    renderRead();
+    toast('対応状況をリセットしました');
+  });
+}
+/* 進捗だけの保存（改訂履歴・更新日時は動かさない） */
+async function saveProgress(m){
+  const clean = JSON.parse(JSON.stringify(m, (k,v)=> k.startsWith('_') ? undefined : v));
+  await idbPut('manuals', clean);
+  const i = manuals.findIndex(x=> x.id === m.id);
+  if(i >= 0) manuals[i] = clean;
 }
 async function shareManual(m){
-  const lines = [`【${m.title}】${m.place ? '（'+m.place+'）' : ''}`, `最終更新 ${fmtDateTime(m.updatedAt)}`, ''];
+  const pl = placesOf(m);
+  const lines = [`【${m.title}】`];
+  if(pl.length) lines.push(`対象：${pl.map(p=> p.name).join('・')}（対応済 ${doneCount(m)}/${pl.length}）`);
+  lines.push(`最終更新 ${fmtDateTime(m.updatedAt)}`, '');
   m.steps.forEach((s,i)=>{
-    lines.push(`${i+1}. ${s.title || '手順'+(i+1)}`);
+    const tg = (s.placeIds||[]).map(id=> (pl.find(p=> p.id===id)||{}).name).filter(Boolean);
+    lines.push(`${i+1}. ${s.title || '手順'+(i+1)}${tg.length ? '（'+tg.join('・')+'）' : ''}`);
     if(s.body) lines.push(`   ${s.body.replace(/\n/g,'\n   ')}`);
     if(s.caution) lines.push(`   ⚠️ ${s.caution.replace(/\n/g,'\n   ')}`);
     lines.push('');
@@ -781,7 +994,7 @@ async function exportAll(){
   const data = {app:'genba-manual', version:1, exportedAt:Date.now(), manuals, images};
   const url = URL.createObjectURL(new Blob([JSON.stringify(data)], {type:'application/json'}));
   const a = document.createElement('a');
-  a.href = url; a.download = `現場マニュアル_${fmtDate(Date.now()).replace(/\//g,'')}.json`;
+  a.href = url; a.download = `NagomiResortマニュアル_${fmtDate(Date.now()).replace(/\//g,'')}.json`;
   a.click();
   setTimeout(()=> URL.revokeObjectURL(url), 4000);
   toast('バックアップを保存しました');
@@ -794,7 +1007,7 @@ $('fileImport').onchange = async e=>{
     for(const [id, durl] of Object.entries(data.images || {})){
       await idbPut('images', {id, blob: await dataURLToBlob(durl)});
     }
-    for(const m of data.manuals || []) await idbPut('manuals', m);
+    for(const m of data.manuals || []) await idbPut('manuals', migrate(m));
     await loadAll(); setView('list');
     toast(`${(data.manuals||[]).length}件を読み込みました`);
   }catch(err){ toast('読み込めませんでした'); }
