@@ -975,8 +975,14 @@ $('menuBtn').onclick = ()=>{
     <button class="btn sub" data-exp style="margin-bottom:10px">⬇ バックアップを書き出す（JSON）</button>
     <button class="btn sub" data-imp style="margin-bottom:10px">⬆ バックアップを読み込む</button>
     <button class="btn ghost" data-no>閉じる</button>
-    <p class="tiny muted" style="margin-top:14px;text-align:center">
-      ホーム画面に追加すると、アプリのように起動できます。</p>`,
+    <div class="tiny muted" style="margin-top:16px;line-height:1.7">
+      <div>いま開いているアドレス：<b>${esc(location.host)}</b></div>
+      <div style="margin-top:6px">
+        データは<b>アドレスごと</b>に端末へ保存されます。アドレス（URL）が変わったときは、
+        <b>旧アドレスで「書き出す」→ 新アドレスで「読み込む」</b>で引き継げます。
+      </div>
+      <div style="margin-top:6px">ホーム画面に追加すると、アプリのように起動できます。</div>
+    </div>`,
   (s, close)=>{
     s.querySelector('[data-exp]').onclick = ()=>{ close(); exportAll(); };
     s.querySelector('[data-imp]').onclick = ()=>{ close(); $('fileImport').click(); };
