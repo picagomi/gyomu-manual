@@ -3,7 +3,7 @@
 現場の写真をアップするだけで、スマホで読める手順書になるアプリ。
 インストール不要・オフライン可・データは端末内（IndexedDB）に保存。
 
-**公開URL → https://picagomi.github.io/gyomu-manual/**
+**公開URL → https://manual-biz.com/**
 スマホでこのURLを開き、「ホーム画面に追加」するとアプリとして起動できます。
 
 ## 使い方
@@ -46,7 +46,17 @@ python3 server.py 8790
 スマホから見るときは同じWi-Fiで `http://<MacのIP>:8790`。
 Safari／Chromeの「ホーム画面に追加」でアプリのように起動できます。
 
-## 独自ドメインへの切り替え（準備済み）
+## 独自ドメイン（設定済み）
+`manual-biz.com`（Xserverドメインで取得）を GitHub Pages に割り当て済みです。
+
+- ネームサーバー：`ns1〜ns3.xdomain.ne.jp`（Xserverアカウントの「DNSレコード設定」で管理）
+- DNS：`manual-biz.com` の A レコード4本（`185.199.108〜111.153`）＋ `www` の CNAME → `picagomi.github.io`
+- リポジトリ直下の `CNAME` ファイルにドメイン名。**このファイルを消すとドメインが外れます**
+- HTTPS強制ON（Let's Encrypt の証明書を GitHub が自動更新）
+- `http://` / `www.` / 旧URL `picagomi.github.io/gyomu-manual/` はすべて `https://manual-biz.com/` へ自動転送
+
+<details><summary>切り替え手順の記録（別ドメインに移すときの参考）</summary>
+
 アプリ内のファイル参照はすべて**相対パス**なので、URL が変わってもコードの修正は不要です。
 （`manifest.json` は `start_url: "./index.html"` / `scope: "./"`、`sw.js` のキャッシュも相対パス）
 
@@ -60,7 +70,8 @@ Safari／Chromeの「ホーム画面に追加」でアプリのように起動�
    ※ GitHub の Settings → Pages でドメインを入力しても同じファイルが作られます
 3. Settings → Pages で **Enforce HTTPS** にチェック（証明書の発行に数分〜1時間）
 
-切り替え後、旧URL `picagomi.github.io/gyomu-manual/` は新ドメインへ自動転送されます。
+切り替え後、旧URLは新ドメインへ自動転送されます。
+</details>
 
 ### ⚠️ 切り替え時のデータ引き継ぎ
 マニュアルのデータは**ブラウザにアドレス（URL）ごとに保存**されるため、URLが変わると
