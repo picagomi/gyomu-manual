@@ -263,6 +263,21 @@ button{cursor:pointer;border:none;background:none}
 .hist .d{color:var(--brand-dark);font-weight:800;font-size:12px}
 
 /* ---------- Sheet / modal ---------- */
+.gate{position:fixed;inset:0;z-index:70;display:flex;align-items:center;justify-content:center;
+  padding:24px;background:linear-gradient(170deg,var(--brand-dark),var(--brand-deep))}
+.gate-box{width:100%;max-width:380px;background:#fff;border-radius:20px;padding:26px 22px calc(22px + var(--safe-b));
+  box-shadow:0 18px 50px rgba(0,0,0,.3);text-align:center}
+.gate-logo{font-size:44px;line-height:1}
+.gate-box h2{margin:8px 0 6px;font-size:19px;font-weight:900}
+.gate-box p{margin:0 0 18px;font-size:13.5px;color:var(--muted);line-height:1.7}
+.gate-box input{width:100%;padding:14px;border:1.5px solid var(--line);border-radius:12px;
+  font-size:17px;text-align:center;letter-spacing:.08em}
+.gate-box input:focus{outline:none;border-color:var(--brand);box-shadow:0 0 0 3px var(--brand-tint)}
+.gate-msg{min-height:20px;margin:9px 0 12px;font-size:13px;font-weight:800;color:var(--danger)}
+.gate-msg.wait{color:var(--muted)}
+.gate-note{margin:16px 0 0!important;font-size:11.5px}
+.cloudmark{display:inline-flex;align-items:center;gap:5px;font-size:11px;font-weight:800;
+  background:rgba(255,255,255,.2);color:#fff;border-radius:999px;padding:2px 9px;margin-left:8px}
 .sheet-bg{position:fixed;inset:0;background:rgba(10,25,17,.5);z-index:60;display:flex;align-items:flex-end;
   justify-content:center;backdrop-filter:blur(2px)}
 .sheet{
@@ -325,8 +340,26 @@ button{cursor:pointer;border:none;background:none}
 </div>
 
 <div id="toast"></div>
+
+<!-- 合い言葉の入力（共有モードのときだけ出ます） -->
+<div id="gate" class="gate hidden">
+  <div class="gate-box">
+    <div class="gate-logo">📗</div>
+    <h2>NagomiResort マニュアル</h2>
+    <p>みんなで共有しているマニュアルです。<br>合い言葉を入れてください。</p>
+    <input type="password" id="gatePass" placeholder="合い言葉" autocomplete="current-password"
+           enterkeyhint="go" autocapitalize="off" spellcheck="false">
+    <div id="gateMsg" class="gate-msg"></div>
+    <button class="btn" id="gateBtn">入る</button>
+    <p class="gate-note">合い言葉がわからないときは管理者にお問い合わせください。<br>
+      一度入れば、次からは自動で開きます。</p>
+  </div>
+</div>
 <input type="file" id="filePick" accept="image/*" multiple class="hidden">
 <input type="file" id="fileImport" accept="application/json" class="hidden">
+
+<script src="firebase-config.js"></script>
+<script type="module" src="cloud.js"></script>
 
 <script>
 /* =========================================================
@@ -411,11 +444,21 @@ function shrink(file){
     img.src = url;
   });
 }
+/* 共有モードで動いているか（ログイン済みのときだけ true） */
+const isCloud = ()=> !!(window.Cloud && Cloud.enabled && Cloud.user());
+
 const urlCache = new Map();
 async function imgUrl(imageId){
   if(!imageId) return null;
   if(urlCache.has(imageId)) return urlCache.get(imageId);
-  const rec = await idbGet('images', imageId);
+  let rec = await idbGet('images', imageId);
+  if(!rec && isCloud()){
+    // 端末にまだ無い写真は共有先から取り寄せて、次回のために保存しておく
+    try{
+      const d = await Cloud.getPhoto(imageId);
+      if(d){ const blob = await dataURLToBlob(d); await idbPut('images', {id: imageId, blob}); rec = {blob}; }
+    }catch(e){ return null; }
+  }
   if(!rec) return null;
   const u = URL.createObjectURL(rec.blob);
   urlCache.set(imageId, u);
@@ -425,7 +468,18 @@ async function saveImage(file){
   const blob = await shrink(file);
   const id = 'img_' + uid();
   await idbPut('images', {id, blob});
+  if(isCloud()){
+    try{ await Cloud.putPhoto(id, await blobToDataURL(blob)); }
+    catch(e){ toast('写真の共有に失敗しました（電波を確認してください）'); }
+  }
   return id;
+}
+/* 書き出し用：端末になければ共有先から取り寄せる */
+async function photoDataURL(id){
+  const rec = await idbGet('images', id);
+  if(rec) return await blobToDataURL(rec.blob);
+  if(isCloud()){ try{ return await Cloud.getPhoto(id); }catch(e){} }
+  return null;
 }
 /* 画面上の <img data-img="id"> を一括で解決 */
 async function hydrateImages(root=document){
@@ -463,8 +517,23 @@ const placesOf = m => m.places || [];
 const doneCount = m => placesOf(m).filter(p=> (m.progress||{})[p.id]).length;
 
 async function loadAll(){
+  if(isCloud()) return;   // 共有モードでは watchManuals から届きます
   manuals = ((await idbAll('manuals')) || []).map(migrate);
   manuals.sort((a,b)=> b.updatedAt - a.updatedAt);
+}
+
+/* 共有先から一覧が届いたとき */
+function onCloudManuals(list){
+  manuals = list.map(migrate).sort((a,b)=> (b.updatedAt||0) - (a.updatedAt||0));
+  if(view === 'list'){ renderList(); return; }
+  if(view === 'read' && current){
+    const fresh = manuals.find(m=> m.id === current.id);
+    if(!fresh){ toast('このマニュアルは削除されました'); goHome(); return; }
+    const changed = JSON.stringify(fresh) !== JSON.stringify(current);
+    current = fresh;
+    if(changed) renderRead();
+  }
+  // 編集中は、書きかけを消さないように画面を触りません
 }
 
 /* ---------- Navigation ---------- */
@@ -478,7 +547,8 @@ function setView(v, opt={}){
   window.scrollTo(0,0);
   if(v === 'list'){
     $('barTitle').textContent = 'NagomiResort マニュアル';
-    $('barSub').textContent = '写真をアップするだけ。スマホで手順書。';
+    $('barSub').textContent = isCloud() ? '👥 みんなで共有中（更新はすぐ全員に反映）'
+                                        : '写真をアップするだけ。スマホで手順書。';
     $('viewList').classList.remove('hidden');
     renderList();
   }else if(v === 'edit'){
@@ -595,9 +665,9 @@ function renderList(){
 $('q').oninput = ()=> { if(view==='list') renderList(); };
 
 async function openManual(id){
-  const rec = await idbGet('manuals', id);
+  const rec = isCloud() ? manuals.find(m=> m.id === id) : await idbGet('manuals', id);
   if(!rec) return;
-  current = migrate(rec);
+  current = migrate(JSON.parse(JSON.stringify(rec)));
   readSel = null;
   setView('read');
 }
@@ -966,18 +1036,42 @@ async function commitSave(note){
   m.history = m.history || [];
   m.history.unshift({at: Date.now(), note, steps: m.steps.length});
   delete m._isNew; delete m._from;
-  await idbPut('manuals', JSON.parse(JSON.stringify(m, (k,v)=> k.startsWith('_') ? undefined : v)));
+  const clean = JSON.parse(JSON.stringify(m, (k,v)=> k.startsWith('_') ? undefined : v));
+  try{
+    if(isCloud()) await Cloud.saveManual(clean);
+    else await idbPut('manuals', clean);
+  }catch(e){
+    toast('保存できませんでした（電波を確認してください）');
+    return;
+  }
   dirty = false;
-  await loadAll();
-  current = await idbGet('manuals', m.id);
-  toast('保存しました（v' + m.history.length + '）');
+  if(isCloud()){
+    current = migrate(JSON.parse(JSON.stringify(clean)));
+    const i = manuals.findIndex(x=> x.id === clean.id);
+    if(i >= 0) manuals[i] = migrate(JSON.parse(JSON.stringify(clean))); else manuals.unshift(current);
+  }else{
+    await loadAll();
+    current = migrate(await idbGet('manuals', m.id));
+  }
+  toast(isCloud() ? `保存しました（v${m.history.length}・みんなに反映）` : `保存しました（v${m.history.length}）`);
   setView('read');
 }
 function deleteManual(m){
   confirmSheet('マニュアルを削除しますか？', `「${m.title || '無題'}」と写真をすべて削除します。元に戻せません。`, '完全に削除', async ()=>{
-    for(const s of m.steps){ for(const id of (s.imageIds||[])) await idbDel('images', id); }
-    await idbDel('manuals', m.id);
-    await loadAll(); current = null; dirty = false;
+    for(const s of m.steps){
+      for(const id of (s.imageIds||[])){
+        await idbDel('images', id);
+        if(isCloud()) await Cloud.delPhoto(id);
+      }
+    }
+    if(isCloud()){
+      await Cloud.deleteManual(m.id);
+      manuals = manuals.filter(x=> x.id !== m.id);
+    }else{
+      await idbDel('manuals', m.id);
+      await loadAll();
+    }
+    current = null; dirty = false;
     toast('削除しました'); setView('list');
   });
 }
@@ -1210,12 +1304,24 @@ function resetProgress(){
     toast('対応状況をリセットしました');
   });
 }
-/* 進捗だけの保存（改訂履歴・更新日時は動かさない） */
+/* 進捗だけの保存（改訂履歴・更新日時は動かさない）
+   共有モードでは progress の項目だけを更新するので、
+   別の場所を同時にチェックしても互いを打ち消しません。 */
 async function saveProgress(m){
   const clean = JSON.parse(JSON.stringify(m, (k,v)=> k.startsWith('_') ? undefined : v));
-  await idbPut('manuals', clean);
   const i = manuals.findIndex(x=> x.id === m.id);
   if(i >= 0) manuals[i] = clean;
+  if(isCloud()){
+    try{
+      await Cloud.patchManual(m.id, {
+        progress: clean.progress || {},
+        progressAt: clean.progressAt || null,
+        rounds: clean.rounds || []
+      });
+    }catch(e){ toast('共有できませんでした（電波を確認してください）'); }
+  }else{
+    await idbPut('manuals', clean);
+  }
 }
 async function shareManual(m){
   const pl = placesOf(m);
@@ -1277,11 +1383,16 @@ function noteSheet(onOk){
   });
 }
 $('menuBtn').onclick = ()=>{
+  const cloud = isCloud();
   sheet(`
     <h2>メニュー</h2>
-    <p class="lead">データはこの端末に保存されています（${manuals.length}件）。</p>
+    <p class="lead">${cloud
+      ? `みんなで共有中です（${manuals.length}件）。更新はすぐ全員に反映されます。`
+      : `データはこの端末に保存されています（${manuals.length}件）。`}</p>
+    ${cloud ? `<button class="btn sub" data-upload style="margin-bottom:10px">⬆ この端末のマニュアルを共有に移す</button>` : ''}
     <button class="btn sub" data-exp style="margin-bottom:10px">⬇ バックアップを書き出す（JSON）</button>
     <button class="btn sub" data-imp style="margin-bottom:10px">⬆ バックアップを読み込む</button>
+    ${cloud ? `<button class="btn ghost" data-out style="margin-bottom:10px">🔒 合い言葉を入れ直す（ログアウト）</button>` : ''}
     <button class="btn ghost" data-no>閉じる</button>
     <div class="tiny muted" style="margin-top:16px;line-height:1.7">
       <div>いま開いているアドレス：<b>${esc(location.host)}</b></div>
@@ -1294,9 +1405,41 @@ $('menuBtn').onclick = ()=>{
   (s, close)=>{
     s.querySelector('[data-exp]').onclick = ()=>{ close(); exportAll(); };
     s.querySelector('[data-imp]').onclick = ()=>{ close(); $('fileImport').click(); };
+    if(s.querySelector('[data-upload]')) s.querySelector('[data-upload]').onclick = ()=>{ close(); uploadLocalToCloud(); };
+    if(s.querySelector('[data-out]')) s.querySelector('[data-out]').onclick = ()=>{
+      close();
+      confirmSheet('ログアウトしますか？','次に開くときは、また合い言葉が必要になります。','ログアウト', async ()=>{
+        await Cloud.signOut(); location.reload();
+      });
+    };
     s.querySelector('[data-no]').onclick = close;
   });
 };
+
+/* この端末だけに入っているマニュアルを、共有側へ引っ越す */
+async function uploadLocalToCloud(){
+  const local = ((await idbAll('manuals')) || []).map(migrate);
+  if(!local.length){ toast('この端末だけのマニュアルはありません'); return; }
+  const already = new Set(manuals.map(m=> m.id));
+  const target = local.filter(m=> !already.has(m.id));
+  if(!target.length){ toast('すべて共有済みです'); return; }
+  confirmSheet(`${target.length}件を共有に移しますか？`,
+    'この端末で作ったマニュアルを、写真ごと全員が見られる状態にします。', '共有する', async ()=>{
+    let n = 0;
+    for(const m of target){
+      for(const st of m.steps){
+        for(const id of (st.imageIds||[])){
+          const d = await photoDataURL(id);
+          if(d) await Cloud.putPhoto(id, d);
+        }
+      }
+      await Cloud.saveManual(JSON.parse(JSON.stringify(m)));
+      n++;
+      toast(`共有中… ${n}/${target.length}`);
+    }
+    toast(`${n}件を共有しました`);
+  });
+}
 
 /* =========================================================
    バックアップ（写真ごとJSONに入れる）
@@ -1311,8 +1454,8 @@ async function exportAll(){
     for(const s of m.steps){
       for(const id of (s.imageIds||[])){
         if(images[id]) continue;
-        const rec = await idbGet('images', id);
-        if(rec) images[id] = await blobToDataURL(rec.blob);
+        const d = await photoDataURL(id);
+        if(d) images[id] = d;
       }
     }
   }
@@ -1331,9 +1474,15 @@ $('fileImport').onchange = async e=>{
     if(data.app !== 'genba-manual') throw new Error('形式が違います');
     for(const [id, durl] of Object.entries(data.images || {})){
       await idbPut('images', {id, blob: await dataURLToBlob(durl)});
+      if(isCloud()) await Cloud.putPhoto(id, durl);
     }
-    for(const m of data.manuals || []) await idbPut('manuals', migrate(m));
-    await loadAll(); setView('list');
+    for(const m of data.manuals || []){
+      const mm = migrate(m);
+      if(isCloud()) await Cloud.saveManual(JSON.parse(JSON.stringify(mm)));
+      else await idbPut('manuals', mm);
+    }
+    if(!isCloud()){ await loadAll(); }
+    setView('list');
     toast(`${(data.manuals||[]).length}件を読み込みました`);
   }catch(err){ toast('読み込めませんでした'); }
   e.target.value = '';
@@ -1342,10 +1491,71 @@ $('fileImport').onchange = async e=>{
 /* ---------- 離脱ガード ---------- */
 window.addEventListener('beforeunload', e=>{ if(dirty){ e.preventDefault(); e.returnValue = ''; } });
 
+/* ---------- 合い言葉のゲート ---------- */
+let cloudWatch = null;
+function showGate(msg){
+  $('gate').classList.remove('hidden');
+  $('gateMsg').textContent = msg || '';
+  $('gateMsg').classList.remove('wait');
+  setTimeout(()=> $('gatePass').focus(), 200);
+}
+function hideGate(){ $('gate').classList.add('hidden'); }
+async function tryGate(){
+  const v = $('gatePass').value.trim();
+  if(!v){ $('gatePass').focus(); return; }
+  $('gateBtn').disabled = true;
+  $('gateMsg').textContent = '確認しています…';
+  $('gateMsg').classList.add('wait');
+  try{
+    await Cloud.signIn(v);
+    $('gatePass').value = '';
+    $('gateMsg').textContent = '';
+  }catch(e){
+    $('gateMsg').textContent = e.message || 'ログインできませんでした';
+    $('gateMsg').classList.remove('wait');
+  }
+  $('gateBtn').disabled = false;
+}
+$('gateBtn').onclick = tryGate;
+$('gatePass').onkeydown = e=>{ if(e.key === 'Enter'){ e.preventDefault(); tryGate(); } };
+
+/* cloud.js（Firebase）の準備を待つ。設定が空、または読めないときは端末内保存で動かす */
+function whenCloud(){
+  if(window.Cloud) return Promise.resolve();
+  const cfg = window.FIREBASE_CONFIG;
+  if(!cfg || !cfg.apiKey) return Promise.resolve();
+  return new Promise(res=>{
+    const done = ()=> res();
+    window.addEventListener('cloud-ready', done, {once:true});
+    setTimeout(done, 8000);   // 通信できないときも起動できるように
+  });
+}
+
 /* ---------- 起動 ---------- */
 (async ()=>{
-  await loadAll();
-  setView('list');
+  await whenCloud();
+
+  if(window.Cloud && Cloud.enabled){
+    $('barSub').textContent = '共有マニュアル';
+    Cloud.onAuth(u=>{
+      if(u){
+        hideGate();
+        if(!cloudWatch){
+          cloudWatch = Cloud.watchManuals(onCloudManuals, ()=> toast('共有先に接続できません'));
+        }
+        if(view === 'list') renderList();
+      }else{
+        if(cloudWatch){ cloudWatch(); cloudWatch = null; }
+        manuals = [];
+        showGate();
+      }
+    });
+    setView('list');
+  }else{
+    await loadAll();
+    setView('list');
+  }
+
   if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(()=>{});
 })();
 </script>
