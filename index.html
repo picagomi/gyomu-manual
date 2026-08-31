@@ -148,6 +148,29 @@ button{cursor:pointer;border:none;background:none}
   display:grid;place-items:center;font-size:14px;color:var(--muted)}
 .minibtn:active,.minibtn:active{background:#eef3f0}
 .minibtn.del{color:var(--danger);border-color:#fecaca}
+.shots{display:grid;gap:3px;background:#0d1a13}
+.shots[data-n="0"]{background:var(--brand-tint2)}
+.shots[data-n="1"]{grid-template-columns:1fr}
+.shots[data-n="2"]{grid-template-columns:1fr 1fr}
+.shot{position:relative;background:#0d1a13;display:flex;align-items:center;justify-content:center}
+.shots[data-n="1"] .shot img{width:100%;max-height:340px;object-fit:contain}
+.shots[data-n="2"] .shot{aspect-ratio:3/4}
+.shots[data-n="2"] .shot img{width:100%;height:100%;object-fit:contain}
+.shot-x{position:absolute;top:6px;right:6px;width:30px;height:30px;border-radius:9px;
+  background:rgba(0,0,0,.6);color:#fff;font-size:13px;font-weight:800;display:grid;place-items:center}
+.shot-n{position:absolute;left:6px;bottom:6px;background:rgba(0,0,0,.55);color:#fff;
+  font-size:11px;font-weight:800;padding:2px 7px;border-radius:999px}
+.shots-bar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;
+  padding:10px 12px;background:var(--brand-tint2);border-bottom:1px solid var(--line)}
+.vshots{display:grid;grid-template-columns:1fr 1fr;gap:3px;background:#0d1a13}
+.vshots .shot{aspect-ratio:3/4}
+.vshots img{width:100%;height:100%;object-fit:contain}
+.zoomer{position:fixed;inset:0;z-index:80;background:rgba(6,16,11,.94);display:flex;
+  align-items:center;justify-content:center;padding:14px}
+.zoomer img{max-width:100%;max-height:100%;object-fit:contain}
+.zoomer .close{position:absolute;top:calc(env(safe-area-inset-top,0px) + 12px);right:14px;
+  width:42px;height:42px;border-radius:12px;background:rgba(255,255,255,.18);color:#fff;
+  font-size:18px;display:grid;place-items:center}
 .step-photo{position:relative;background:#0d1a13}
 .step-photo.noimg{background:var(--brand-tint2);border-bottom:1px dashed var(--brand)}
 .step-photo .nophoto{padding:30px 14px;text-align:center;color:#7d9a8c;font-size:13px;font-weight:700}
@@ -419,7 +442,11 @@ function migrate(m){
   delete m.place;
   if(!m.progress || typeof m.progress !== 'object') m.progress = {};
   if(!Array.isArray(m.rounds)) m.rounds = [];
-  (m.steps || []).forEach(s=>{ if(!Array.isArray(s.placeIds)) s.placeIds = []; });
+  (m.steps || []).forEach(s=>{
+    if(!Array.isArray(s.placeIds)) s.placeIds = [];
+    if(!Array.isArray(s.imageIds)) s.imageIds = s.imageId ? [s.imageId] : [];
+    delete s.imageId;
+  });
   return m;
 }
 const placesOf = m => m.places || [];
@@ -516,14 +543,14 @@ function renderList(){
     el.innerHTML = `
       <div class="sec-title" style="margin-top:6px">マニュアル ${list.length}件${recent?`　/　最近更新 ${recent}件`:''}</div>
       ${list.map(m=>{
-        const cover = (m.steps||[]).find(s=> s.imageId);
+        const cover = (m.steps||[]).find(s=> (s.imageIds||[]).length);
         const isNew = Date.now()-m.updatedAt < 3*86400000;
         const pl = placesOf(m), dn = doneCount(m);
         return `
         <div class="card">
           <button class="mcard" data-open="${m.id}">
             <div class="thumb">${cover
-              ? `<img data-img="${cover.imageId}" alt="">`
+              ? `<img data-img="${cover.imageIds[0]}" alt="">`
               : `<div class="ph">📷</div>`}</div>
             <div class="body">
               <h3>${esc(m.title)}</h3>
@@ -572,7 +599,7 @@ let pickMode = null; // 'new' | 'append' | {replace: stepId}
 function pickPhotos(mode){
   pickMode = mode;
   $('filePick').value = '';
-  $('filePick').multiple = !(mode && mode.replace);
+  $('filePick').multiple = true;
   $('filePick').click();
 }
 function startNew(){ pickPhotos('new'); }
@@ -591,7 +618,7 @@ $('filePick').onchange = async e=>{
       places: [],
       progress: {},
       rounds: [],
-      steps: ids.map(imageId=> ({id:'st_'+uid(), imageId, title:'', body:'', caution:'', placeIds:[], updatedAt:Date.now()})),
+      steps: ids.map(imageId=> ({id:'st_'+uid(), imageIds:[imageId], title:'', body:'', caution:'', placeIds:[], updatedAt:Date.now()})),
       createdAt: Date.now(),
       updatedAt: Date.now(),
       history: [],
@@ -600,12 +627,16 @@ $('filePick').onchange = async e=>{
     setView('edit', {isNew:true});
     toast(`${ids.length}枚の写真を読み込みました`);
   }else if(pickMode === 'append'){
-    ids.forEach(imageId=> current.steps.push({id:'st_'+uid(), imageId, title:'', body:'', caution:'', placeIds:[], updatedAt:Date.now()}));
+    ids.forEach(imageId=> current.steps.push({id:'st_'+uid(), imageIds:[imageId], title:'', body:'', caution:'', placeIds:[], updatedAt:Date.now()}));
     dirty = true; renderEdit();
     toast(`${ids.length}枚を追加しました`);
-  }else if(pickMode && pickMode.replace){
-    const st = current.steps.find(s=> s.id === pickMode.replace);
-    if(st){ st.imageId = ids[0]; st.updatedAt = Date.now(); dirty = true; renderEdit(); toast('写真を差し替えました'); }
+  }else if(pickMode && pickMode.addTo){
+    const st = current.steps.find(s=> s.id === pickMode.addTo);
+    if(st){
+      st.imageIds = (st.imageIds || []).concat(ids);
+      st.updatedAt = Date.now(); dirty = true; renderEdit();
+      toast(st.imageIds.length >= 2 ? 'この手順に写真を追加しました（横に並びます）' : '写真を追加しました');
+    }
   }
   pickMode = null;
 };
@@ -707,7 +738,7 @@ async function createFromSample(t){
       progress: {}, rounds: [],
       steps: (src.steps||[]).map(st=> ({
         id: 'st_'+uid(),
-        imageId: st.imageId ? (idMap[st.imageId] || null) : null,
+        imageIds: (st.imageIds || []).map(id=> idMap[id]).filter(Boolean),
         title: st.title, body: st.body, caution: st.caution,
         placeIds: [], updatedAt: Date.now()
       })),
@@ -730,7 +761,7 @@ function createFromTemplate(t){
     progress: {},
     rounds: [],
     steps: t.steps.map(st=> ({
-      id: 'st_'+uid(), imageId: null,
+      id: 'st_'+uid(), imageIds: [],
       title: st.t, body: st.b, caution: st.c,
       placeIds: (st.p||[]).map(idOf).filter(Boolean),
       updatedAt: Date.now()
@@ -784,10 +815,20 @@ function renderEdit(){
           <button class="minibtn" data-down="${s.id}" ${i===m.steps.length-1?'disabled style="opacity:.35"':''} aria-label="下へ">↓</button>
           <button class="minibtn del" data-del="${s.id}" aria-label="削除">✕</button>
         </div>
-        <div class="step-photo ${s.imageId ? '' : 'noimg'}">
-          ${s.imageId ? `<img data-img="${s.imageId}" alt="手順${i+1}">`
-                      : `<div class="nophoto">写真はまだありません</div>`}
-          <button class="replace" data-replace="${s.id}">${s.imageId ? '写真を変更' : '📷 写真を追加'}</button>
+        <div class="shots" data-n="${Math.min((s.imageIds||[]).length, 2)}">
+          ${(s.imageIds||[]).length
+            ? s.imageIds.map((id,j)=>`
+              <div class="shot">
+                <img data-img="${id}" alt="">
+                ${s.imageIds.length > 1 ? `<span class="shot-n">${j+1}枚目</span>` : ''}
+                <button class="shot-x" data-rmimg="${s.id}|${id}" aria-label="この写真を外す">✕</button>
+              </div>`).join('')
+            : `<div class="nophoto">写真はまだありません</div>`}
+        </div>
+        <div class="shots-bar">
+          <button class="btn sm sub" data-addimg="${s.id}">📷 写真を追加</button>
+          <span class="tiny muted">${(s.imageIds||[]).length ? `${s.imageIds.length}枚` : '写真なし'}${
+            (s.imageIds||[]).length >= 2 ? '　横に並べて表示されます' : ''}</span>
         </div>
         <div class="step-body">
           <div class="field">
@@ -872,7 +913,14 @@ function renderEdit(){
       m.steps = m.steps.filter(s=> s.id !== b.dataset.del); dirty = true; renderEdit();
     });
   });
-  el.querySelectorAll('[data-replace]').forEach(b=> b.onclick = ()=> pickPhotos({replace: b.dataset.replace}));
+  el.querySelectorAll('[data-addimg]').forEach(b=> b.onclick = ()=> pickPhotos({addTo: b.dataset.addimg}));
+  el.querySelectorAll('[data-rmimg]').forEach(b=> b.onclick = ()=>{
+    const [sid, iid] = b.dataset.rmimg.split('|');
+    const st = current.steps.find(x=> x.id === sid);
+    if(!st) return;
+    st.imageIds = (st.imageIds||[]).filter(x=> x !== iid);
+    st.updatedAt = Date.now(); dirty = true; renderEdit();
+  });
   $('addPhoto').onclick = ()=> pickPhotos('append');
   if($('delMan')) $('delMan').onclick = ()=> deleteManual(m);
 
@@ -917,7 +965,7 @@ async function commitSave(note){
 }
 function deleteManual(m){
   confirmSheet('マニュアルを削除しますか？', `「${m.title || '無題'}」と写真をすべて削除します。元に戻せません。`, '完全に削除', async ()=>{
-    for(const s of m.steps){ if(s.imageId) await idbDel('images', s.imageId); }
+    for(const s of m.steps){ for(const id of (s.imageIds||[])) await idbDel('images', id); }
     await idbDel('manuals', m.id);
     await loadAll(); current = null; dirty = false;
     toast('削除しました'); setView('list');
@@ -1042,7 +1090,12 @@ function renderSteps(){
                           : '<span class="tag all">全場所 共通</span>'}</div>` : ''}
           </div>
         </div>
-        ${s.imageId ? `<img data-img="${s.imageId}" alt="手順${i+1}">` : ''}
+        ${(s.imageIds||[]).length === 1
+          ? `<img data-img="${s.imageIds[0]}" alt="手順${i+1}" data-zoom="${s.imageIds[0]}">`
+          : (s.imageIds||[]).length > 1
+            ? `<div class="vshots">${s.imageIds.map(id=>`
+                <div class="shot"><img data-img="${id}" alt="" data-zoom="${id}"></div>`).join('')}</div>`
+            : ''}
         ${s.body ? `<div class="txt">${esc(s.body)}</div>` : ''}
         ${s.caution ? `<div class="caution"><b>⚠️ 注意</b>${esc(s.caution)}</div>` : ''}
       </div>`; }).join('')
@@ -1060,6 +1113,10 @@ function renderSteps(){
     </div>`;
 
   hydrateImages(el);
+  el.querySelectorAll('[data-zoom]').forEach(im=>{
+    im.style.cursor = 'zoom-in';
+    im.onclick = ()=> zoomImage(im.dataset.zoom);
+  });
   if($('toPicker')) $('toPicker').onclick = ()=>{ readSel = null; renderRead(); };
   bindCommonReadButtons(m);
 
@@ -1078,6 +1135,17 @@ function renderSteps(){
     </div>`;
   $('editBtn').onclick = ()=>{ current._from = 'read'; setView('edit'); };
   if($('markBtn')) $('markBtn').onclick = ()=> markPlace(cur.id);
+}
+
+/* 写真を全画面で拡大（横に2枚並べたときも細部を確認できるように） */
+async function zoomImage(id){
+  const u = await imgUrl(id);
+  if(!u) return;
+  const d = document.createElement('div');
+  d.className = 'zoomer';
+  d.innerHTML = `<img src="${u}" alt=""><button class="close" aria-label="閉じる">✕</button>`;
+  d.onclick = ()=> d.remove();
+  document.body.appendChild(d);
 }
 
 /* 閲覧画面で共通のボタン */
@@ -1225,9 +1293,10 @@ async function exportAll(){
   const images = {};
   for(const m of manuals){
     for(const s of m.steps){
-      if(s.imageId && !images[s.imageId]){
-        const rec = await idbGet('images', s.imageId);
-        if(rec) images[s.imageId] = await blobToDataURL(rec.blob);
+      for(const id of (s.imageIds||[])){
+        if(images[id]) continue;
+        const rec = await idbGet('images', id);
+        if(rec) images[id] = await blobToDataURL(rec.blob);
       }
     }
   }
