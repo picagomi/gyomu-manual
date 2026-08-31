@@ -117,6 +117,7 @@ button{cursor:pointer;border:none;background:none}
 .btn.ghost{background:#eef3f0;color:var(--text);box-shadow:none}
 .btn.danger{background:#fff;color:var(--danger);border:1.5px solid #fecaca;box-shadow:none}
 .btn.sm{padding:9px 12px;font-size:13px;border-radius:11px;width:auto}
+.btn.slim{padding:3px 14px;font-size:13.5px;line-height:1.7;border-radius:10px;box-shadow:none}
 .btnrow{display:flex;gap:10px}
 .fabwrap{
   position:fixed;left:0;right:0;bottom:0;z-index:25;pointer-events:none;
@@ -1375,7 +1376,7 @@ function renderPlacePicker(){
         <div class="pbar"><i style="width:${Math.round(done/total*100)}%"></i></div>
         <div class="rest">残り：${places.filter(p=> !prog[p.id]).map(p=> esc(p.name)).join('・')}</div>
       </div>`}
-    <div class="btnrow"><button class="btn sub" id="editBtn">✎ 更新する</button></div>`;
+    <div class="btnrow"><button class="btn sub slim" id="editBtn">✎ 編集・追記</button></div>`;
   $('editBtn').onclick = ()=>{ current._from = 'read'; setView('edit'); };
 }
 
@@ -1467,13 +1468,14 @@ function renderSteps(){
         <div class="prog-top"><b>対応状況</b><span>${done} / ${total} か所 完了</span></div>
         <div class="pbar"><i style="width:${Math.round(done/total*100)}%"></i></div>
       </div>` : ''}
-    <div class="btnrow">
-      ${cur
-        ? `<button class="btn ${prog[cur.id]?'sub':''}" id="markBtn" style="flex:1;min-width:0">${
-             prog[cur.id] ? `✓ ${esc(cur.name)}：対応済（取消）` : `✓ ${esc(cur.name)} 済にする`}</button>
-           <button class="btn sub" id="editBtn" style="flex:none;width:88px">✎ 更新</button>`
-        : `<button class="btn sub" id="editBtn">✎ 更新する</button>`}
-    </div>`;
+    <div class="btnrow" style="margin-bottom:8px">
+      <button class="btn sub slim" id="editBtn">✎ 編集・追記</button>
+    </div>
+    ${cur ? `
+      <div class="btnrow">
+        <button class="btn ${prog[cur.id]?'sub':''}" id="markBtn">${
+          prog[cur.id] ? `✓ ${esc(cur.name)}：対応済（取消）` : `✓ ${esc(cur.name)} 済にする`}</button>
+      </div>` : ''}`;
   $('editBtn').onclick = ()=>{ current._from = 'read'; setView('edit'); };
   if($('markBtn')) $('markBtn').onclick = ()=> markPlace(cur.id);
 }
