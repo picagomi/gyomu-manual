@@ -149,6 +149,12 @@ button{cursor:pointer;border:none;background:none}
 .minibtn:active,.minibtn:active{background:#eef3f0}
 .minibtn.del{color:var(--danger);border-color:#fecaca}
 .step-photo{position:relative;background:#0d1a13}
+.step-photo.noimg{background:var(--brand-tint2);border-bottom:1px dashed var(--brand)}
+.step-photo .nophoto{padding:30px 14px;text-align:center;color:#7d9a8c;font-size:13px;font-weight:700}
+.step-photo.noimg .replace{background:var(--brand)}
+.tplbtn{flex-direction:column;align-items:flex-start;gap:3px;text-align:left}
+.tplbtn .t{font-size:15.5px;font-weight:800}
+.tplbtn .d{font-size:12px;font-weight:600;color:var(--muted);line-height:1.5}
 .step-photo img{width:100%;max-height:340px;object-fit:contain;background:#0d1a13}
 .step-photo .replace{position:absolute;right:10px;bottom:10px;background:rgba(0,0,0,.6);color:#fff;
   padding:7px 11px;border-radius:10px;font-size:12px;font-weight:700}
@@ -498,7 +504,8 @@ function renderList(){
         </ol>
         <div class="tiny" style="margin-top:12px;line-height:1.7">
           受付・コテージ・ヴィラなど<b>複数の場所</b>を登録すると、<br>
-          場所ごとに手順を出し分けて「対応済」チェックができます。
+          場所ごとに手順を出し分けて「対応済」チェックができます。<br>
+          <b>「📋 ひな形」</b>から、停電対応などの型を呼び出せます。
         </div>
       </div>`;
   }else if(!list.length){
@@ -540,8 +547,13 @@ function renderList(){
   hydrateImages(el);
   el.querySelectorAll('[data-open]').forEach(b=> b.onclick = ()=> openManual(b.dataset.open));
 
-  $('fab').innerHTML = `<button class="btn" id="newBtn">📷　写真からマニュアルを作る</button>`;
+  $('fab').innerHTML = `
+    <div class="btnrow">
+      <button class="btn" id="newBtn" style="flex:2">📷　写真からつくる</button>
+      <button class="btn sub" id="tplBtn" style="flex:1;min-width:0">📋 ひな形</button>
+    </div>`;
   $('newBtn').onclick = startNew;
+  $('tplBtn').onclick = templateSheet;
 }
 $('q').oninput = ()=> { if(view==='list') renderList(); };
 
@@ -599,6 +611,99 @@ $('filePick').onchange = async e=>{
 };
 
 /* =========================================================
+   ひな形（テンプレート）
+   ※ 文章は「型」です。実際の設備・連絡先に合わせて直してお使いください。
+   ========================================================= */
+const NAGOMI_PLACES = ['受付','コテージ','ヴィラ','カフェ','ドッグスパ','ドッグラン','753カフェ'];
+
+const TEMPLATES = [
+{
+  title: '停電時復旧マニュアル',
+  desc: '7拠点の対応チェックつき。共通手順＋拠点ごとの手順が入った状態でつくります',
+  places: NAGOMI_PLACES,
+  steps: [
+    { t:'まず安全確認', p:[],
+      b:'暗い場所は懐中電灯を使って移動する。お客様とスタッフの安全（ケガ・転倒・エレベーターや室内への閉じ込め）を最優先で確認する。',
+      c:'焦げくさい・煙・火花が見えるときは、ブレーカーに触らずすぐに管理者と消防へ連絡。' },
+    { t:'停電の範囲を確認', p:[],
+      b:'近隣の建物や街灯も消えているか確認する。\n・地域一帯が停電 → 電力会社の復旧待ち。お客様へ状況を案内。\n・自社だけが停電 → 次の手順で分電盤を確認。\n\n電力会社の停電情報／連絡先：（ここに記入してください）',
+      c:'' },
+    { t:'分電盤の位置を確認', p:[],
+      b:'各拠点の分電盤の扉を開け、主幹ブレーカー・漏電ブレーカー・子ブレーカーの状態を見る。\n※この手順に、実際の分電盤の写真を追加してください。',
+      c:'濡れた手で触らない。ブレーカーが熱い・焦げているときは触らず管理者へ連絡。' },
+    { t:'ブレーカーを戻す手順', p:[],
+      b:'① 子ブレーカーをすべて「切」にする\n② 漏電ブレーカーを「入」にする\n③ 主幹ブレーカーを「入」にする\n④ 子ブレーカーを1つずつ「入」にする\n\n途中で落ちたら、その回路が原因。そこは「切」のままにして管理者へ連絡する。',
+      c:'原因が分からないまま何度も入れ直さない。' },
+    { t:'受付の復旧確認', p:['受付'],
+      b:'POSレジ・電話・予約用PC・Wi-Fiルーターの電源を入れ直す。ルーターは電源を入れてから3分ほど待つ。予約システムがつながるか確認する。', c:'' },
+    { t:'コテージの復旧確認', p:['コテージ'],
+      b:'各棟の分電盤を確認。給湯器のリモコン表示、エアコン、冷蔵庫の通電を確認する。滞在中のお客様がいる棟は先に声かけをする。', c:'' },
+    { t:'ヴィラの復旧確認', p:['ヴィラ'],
+      b:'各室の分電盤を確認。給湯器・エアコン・照明・冷蔵庫の通電を確認する。滞在中のお客様がいる部屋は先に声かけをする。', c:'' },
+    { t:'厨房・冷蔵設備の確認', p:['カフェ','753カフェ'],
+      b:'冷蔵庫・冷凍庫の温度計を確認して記録する。停電していた時間もあわせて記録する。製氷機・コーヒーマシン・レジの復帰も確認する。',
+      c:'温度が上がった食材は自己判断で提供しない。必ず管理者に確認する。' },
+    { t:'ドッグスパの復旧確認', p:['ドッグスパ'],
+      b:'給湯・温水設備、ドライヤー、換気扇の通電を確認する。お預かり中のワンちゃんがいる場合は、室温と様子を先に確認する。', c:'' },
+    { t:'ドッグランの復旧確認', p:['ドッグラン'],
+      b:'照明・門扉・電気柵の通電を確認する。夜間は暗くなるため、お客様とワンちゃんの安全確保を優先する。', c:'' },
+    { t:'復旧後の共通チェック', p:[],
+      b:'照明・給湯器・冷蔵庫の通電を確認。時計やタイマーの再設定が必要な機器（給湯器の予約、券売機、BGM機器など）を確認する。', c:'' },
+    { t:'記録して報告', p:[],
+      b:'発生時刻／復旧時刻／停電の範囲／対応した人 を記録し、管理者へ報告する。気づいたことはこのマニュアルに追記して次回に活かす。', c:'' }
+  ]
+},
+{
+  title: '（空）複数拠点の対応マニュアル',
+  desc: '7拠点だけ入った空のマニュアル。日常点検・開店準備などを自分で書くとき用',
+  places: NAGOMI_PLACES,
+  steps: []
+}
+];
+
+function templateSheet(){
+  sheet(`
+    <h2>ひな形からつくる</h2>
+    <p class="lead">よく使う型を用意しました。作ったあとで、写真の追加も文章の書き換えもできます。</p>
+    ${TEMPLATES.map((t,i)=>`
+      <button class="btn sub tplbtn" data-tpl="${i}" style="margin-bottom:10px">
+        <span class="t">${esc(t.title)}</span>
+        <span class="d">${esc(t.desc)}</span>
+      </button>`).join('')}
+    <button class="btn ghost" data-no>閉じる</button>
+    <p class="tiny muted" style="margin-top:14px;line-height:1.6">
+      ひな形の文章は「型」です。実際の設備・連絡先に合わせて直してからお使いください。</p>`,
+  (sh, close)=>{
+    sh.querySelectorAll('[data-tpl]').forEach(b=> b.onclick = ()=>{ close(); createFromTemplate(TEMPLATES[+b.dataset.tpl]); });
+    sh.querySelector('[data-no]').onclick = close;
+  });
+}
+
+function createFromTemplate(t){
+  const places = t.places.map(name=> ({id:'pl_'+uid(), name}));
+  const idOf = name => (places.find(p=> p.name === name) || {}).id;
+  current = {
+    id: 'man_' + uid(),
+    title: t.title,
+    places,
+    progress: {},
+    rounds: [],
+    steps: t.steps.map(st=> ({
+      id: 'st_'+uid(), imageId: null,
+      title: st.t, body: st.b, caution: st.c,
+      placeIds: (st.p||[]).map(idOf).filter(Boolean),
+      updatedAt: Date.now()
+    })),
+    createdAt: Date.now(),
+    updatedAt: Date.now(),
+    history: [],
+    _isNew: true
+  };
+  setView('edit', {isNew:true});
+  toast(t.steps.length ? `ひな形を読み込みました（${t.steps.length}手順）` : 'ひな形を読み込みました');
+}
+
+/* =========================================================
    編集画面
    ========================================================= */
 const TITLE_CHIPS = ['停電時復旧マニュアル','給湯器の操作','日常点検','開店準備','清掃手順','緊急時の対応'];
@@ -638,9 +743,10 @@ function renderEdit(){
           <button class="minibtn" data-down="${s.id}" ${i===m.steps.length-1?'disabled style="opacity:.35"':''} aria-label="下へ">↓</button>
           <button class="minibtn del" data-del="${s.id}" aria-label="削除">✕</button>
         </div>
-        <div class="step-photo">
-          ${s.imageId ? `<img data-img="${s.imageId}" alt="手順${i+1}">` : ''}
-          <button class="replace" data-replace="${s.id}">写真を変更</button>
+        <div class="step-photo ${s.imageId ? '' : 'noimg'}">
+          ${s.imageId ? `<img data-img="${s.imageId}" alt="手順${i+1}">`
+                      : `<div class="nophoto">写真はまだありません</div>`}
+          <button class="replace" data-replace="${s.id}">${s.imageId ? '写真を変更' : '📷 写真を追加'}</button>
         </div>
         <div class="step-body">
           <div class="field">
