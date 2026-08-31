@@ -654,6 +654,11 @@ const TEMPLATES = [
   ]
 },
 {
+  title: '給湯器の運転（写真つきの実例）',
+  desc: '屋外の給湯器と PURPOSE リモコン MC-100 の運転手順。実際の写真つきで読み込みます',
+  url: 'samples/kyutouki-mc100.json'
+},
+{
   title: '（空）複数拠点の対応マニュアル',
   desc: '7拠点だけ入った空のマニュアル。日常点検・開店準備などを自分で書くとき用',
   places: NAGOMI_PLACES,
@@ -674,9 +679,45 @@ function templateSheet(){
     <p class="tiny muted" style="margin-top:14px;line-height:1.6">
       ひな形の文章は「型」です。実際の設備・連絡先に合わせて直してからお使いください。</p>`,
   (sh, close)=>{
-    sh.querySelectorAll('[data-tpl]').forEach(b=> b.onclick = ()=>{ close(); createFromTemplate(TEMPLATES[+b.dataset.tpl]); });
+    sh.querySelectorAll('[data-tpl]').forEach(b=> b.onclick = ()=>{
+      close();
+      const t = TEMPLATES[+b.dataset.tpl];
+      if(t.url) createFromSample(t); else createFromTemplate(t);
+    });
     sh.querySelector('[data-no]').onclick = close;
   });
+}
+
+/* 写真つきの実例を読み込む（サイトに置いたJSONを取ってきて、写真ごと複製する） */
+async function createFromSample(t){
+  toast('写真を読み込み中…');
+  try{
+    const data = await fetch(t.url, {cache:'no-cache'}).then(r=>{ if(!r.ok) throw new Error(r.status); return r.json(); });
+    const src = migrate(data.manuals[0]);
+    const idMap = {};
+    for(const [oldId, durl] of Object.entries(data.images || {})){
+      const nid = 'img_' + uid();
+      idMap[oldId] = nid;
+      await idbPut('images', {id: nid, blob: await dataURLToBlob(durl)});
+    }
+    current = {
+      id: 'man_' + uid(),
+      title: src.title,
+      places: (src.places||[]).map(p=> ({id:'pl_'+uid(), name:p.name})),
+      progress: {}, rounds: [],
+      steps: (src.steps||[]).map(st=> ({
+        id: 'st_'+uid(),
+        imageId: st.imageId ? (idMap[st.imageId] || null) : null,
+        title: st.title, body: st.body, caution: st.caution,
+        placeIds: [], updatedAt: Date.now()
+      })),
+      createdAt: Date.now(), updatedAt: Date.now(), history: [], _isNew: true
+    };
+    setView('edit', {isNew:true});
+    toast('写真つきのひな形を読み込みました');
+  }catch(e){
+    toast('読み込めませんでした（通信を確認してください）');
+  }
 }
 
 function createFromTemplate(t){
