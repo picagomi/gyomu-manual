@@ -10,12 +10,12 @@
    =========================================================== */
 
 window.FIREBASE_CONFIG = {
-  apiKey: "",
-  authDomain: "",
-  projectId: "",
-  storageBucket: "",
-  messagingSenderId: "",
-  appId: ""
+  apiKey: "AIzaSyDMnhbZ281RaCONMXs7OpjBHK48FoCzTyI",
+  authDomain: "nagomi-manual.firebaseapp.com",
+  projectId: "nagomi-manual",
+  storageBucket: "nagomi-manual.firebasestorage.app",
+  messagingSenderId: "105595720434",
+  appId: "1:105595720434:web:8524764c1fc32c4197766b"
 };
 
 /* 合い言葉で入るときに使う共有アカウントのメールアドレス。

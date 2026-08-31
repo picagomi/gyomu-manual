@@ -7,6 +7,16 @@
 - 写真 → Firestore に1枚1件で保存（**無料プランのまま**使えます。カード登録不要）
 - 合い言葉 → 「共有アカウント1つのパスワード」として Firebase 側で検証します
 
+## 設定済みの内容（2026-08-31）
+| 項目 | 値 |
+|---|---|
+| プロジェクト | `nagomi-manual`（Spark＝無料プラン） |
+| Firestore | asia-northeast1 |
+| 共有アカウント | `staff@manual-biz.com`（パスワード＝合い言葉。コンソールでのみ変更） |
+| 共有アカウントのUID | `U5OyWORGhRMhN0nY029Nik2VAth1` |
+
+以下は、別のプロジェクトで作り直すときの手順です。
+
 ## 1. プロジェクトを作る
 1. https://console.firebase.google.com を開く（五味さんのGoogleアカウントで）
 2. 「プロジェクトを追加」→ 名前は `nagomi-manual` など
@@ -27,7 +37,7 @@
 
 ## 4. セキュリティルールを入れる
 「Firestore Database → ルール」に貼り付けて「公開」。
-`ここにUID` を 3 でコピーしたUIDに置き換えてください。
+`ここにUID` を 3 でコピーしたUIDに置き換えてください（現在は `U5OyWORGhRMhN0nY029Nik2VAth1`）。
 
 ```
 rules_version = '2';
