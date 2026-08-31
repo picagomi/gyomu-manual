@@ -1,0 +1,815 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#15803d">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="現場マニュアル">
+<link rel="manifest" href="manifest.json">
+<title>現場マニュアル｜写真でつくる業務マニュアル</title>
+<style>
+:root{
+  --brand:#16a34a;
+  --brand-dark:#15803d;
+  --brand-deep:#14532d;
+  --brand-tint:#dcfce7;
+  --brand-tint2:#f0fdf4;
+  --bg:#f4f7f5;
+  --card:#ffffff;
+  --line:#e2e8e5;
+  --text:#132018;
+  --muted:#6b7f74;
+  --warn:#b45309;
+  --warn-bg:#fffbeb;
+  --warn-line:#fcd34d;
+  --danger:#dc2626;
+  --radius:16px;
+  --shadow:0 1px 2px rgba(16,40,28,.06),0 8px 24px rgba(16,40,28,.07);
+  --safe-b:env(safe-area-inset-bottom,0px);
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;padding:0}
+body{
+  font-family:-apple-system,BlinkMacSystemFont,"Hiragino Sans","Noto Sans JP","Yu Gothic",sans-serif;
+  background:var(--bg);color:var(--text);
+  font-size:16px;line-height:1.65;
+  overscroll-behavior-y:none;
+}
+img{display:block;max-width:100%}
+button,input,textarea,select{font:inherit;color:inherit}
+button{cursor:pointer;border:none;background:none}
+.app{max-width:560px;margin:0 auto;min-height:100vh;background:var(--bg);position:relative}
+
+/* ---------- App bar ---------- */
+.bar{
+  position:sticky;top:0;z-index:30;
+  background:linear-gradient(180deg,var(--brand-dark),var(--brand));
+  color:#fff;padding:calc(env(safe-area-inset-top,0px) + 12px) 16px 12px;
+  box-shadow:0 2px 12px rgba(20,83,45,.25);
+}
+.bar-row{display:flex;align-items:center;gap:10px;min-height:34px}
+.bar h1{font-size:19px;margin:0;font-weight:800;letter-spacing:.02em;flex:1;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.bar .sub{font-size:12px;opacity:.85;margin-top:2px}
+.iconbtn{
+  width:38px;height:38px;border-radius:12px;display:grid;place-items:center;
+  color:#fff;background:rgba(255,255,255,.16);font-size:18px;flex:none;
+}
+.iconbtn:active{background:rgba(255,255,255,.3)}
+.searchwrap{margin-top:10px;position:relative}
+.searchwrap input{
+  width:100%;padding:11px 14px 11px 40px;border-radius:12px;border:none;
+  background:rgba(255,255,255,.95);font-size:15px;
+}
+.searchwrap span{position:absolute;left:13px;top:50%;transform:translateY(-50%);opacity:.5;font-size:15px}
+
+/* ---------- Layout ---------- */
+.page{padding:16px 16px calc(110px + var(--safe-b))}
+.hidden{display:none!important}
+.muted{color:var(--muted)}
+.tiny{font-size:12px}
+.sec-title{font-size:13px;font-weight:800;color:var(--muted);letter-spacing:.08em;margin:22px 2px 10px}
+
+/* ---------- Cards (list) ---------- */
+.card{
+  background:var(--card);border:1px solid var(--line);border-radius:var(--radius);
+  box-shadow:var(--shadow);overflow:hidden;margin-bottom:12px;
+}
+.mcard{display:flex;gap:0;align-items:stretch;width:100%;text-align:left}
+.mcard .thumb{width:104px;flex:none;background:var(--brand-tint2);position:relative}
+.mcard .thumb img{width:100%;height:100%;object-fit:cover}
+.mcard .thumb .ph{width:100%;height:100%;display:grid;place-items:center;font-size:26px;opacity:.4}
+.mcard .body{padding:12px 14px;flex:1;min-width:0}
+.mcard h3{margin:0 0 4px;font-size:16px;font-weight:800;line-height:1.4;
+  display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.mcard .meta{font-size:12px;color:var(--muted);display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.mcard .meta .pill{max-width:100%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pill{
+  display:inline-block;background:var(--brand-tint);color:var(--brand-deep);
+  padding:2px 8px;border-radius:999px;font-size:11px;font-weight:700;
+}
+.pill.gray{background:#eef2f0;color:var(--muted)}
+.pill.new{background:#fee2e2;color:#b91c1c}
+
+/* ---------- Empty ---------- */
+.empty{text-align:center;padding:48px 20px;color:var(--muted)}
+.empty .em{font-size:52px;margin-bottom:8px}
+.empty h2{font-size:17px;color:var(--text);margin:0 0 6px}
+.steps-guide{
+  text-align:left;background:var(--card);border:1px dashed var(--brand);border-radius:var(--radius);
+  padding:14px 16px;margin-top:18px;
+}
+.steps-guide li{margin:6px 0;font-size:14px}
+
+/* ---------- Buttons ---------- */
+.btn{
+  display:flex;align-items:center;justify-content:center;gap:8px;width:100%;
+  padding:14px 16px;border-radius:14px;font-weight:800;font-size:16px;
+  background:var(--brand);color:#fff;box-shadow:0 4px 14px rgba(22,163,74,.28);
+}
+.btn:active{transform:translateY(1px)}
+.btn.sub{background:#fff;color:var(--brand-dark);border:1.5px solid var(--brand);box-shadow:none}
+.btn.ghost{background:#eef3f0;color:var(--text);box-shadow:none}
+.btn.danger{background:#fff;color:var(--danger);border:1.5px solid #fecaca;box-shadow:none}
+.btn.sm{padding:9px 12px;font-size:13px;border-radius:11px;width:auto}
+.btnrow{display:flex;gap:10px}
+.fabwrap{
+  position:fixed;left:0;right:0;bottom:0;z-index:25;pointer-events:none;
+  padding:12px 16px calc(12px + var(--safe-b));
+  background:linear-gradient(180deg,rgba(244,247,245,0),rgba(244,247,245,.95) 42%);
+}
+.fabwrap>*{pointer-events:auto;max-width:528px;margin:0 auto}
+
+/* ---------- Form ---------- */
+.field{margin-bottom:14px}
+.field label{display:block;font-size:13px;font-weight:800;margin-bottom:6px;color:var(--brand-deep)}
+.field input[type=text],.field textarea,.field select{
+  width:100%;padding:12px 14px;border:1.5px solid var(--line);border-radius:12px;
+  background:#fff;font-size:16px;
+}
+.field textarea{min-height:84px;resize:vertical;line-height:1.6}
+.field input:focus,.field textarea:focus{outline:none;border-color:var(--brand);box-shadow:0 0 0 3px var(--brand-tint)}
+.chips{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}
+.chip{padding:6px 11px;border-radius:999px;background:var(--brand-tint2);border:1px solid var(--brand-tint);
+  color:var(--brand-deep);font-size:12.5px;font-weight:700}
+.chip:active{background:var(--brand-tint)}
+
+/* ---------- Step editor ---------- */
+.step{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);
+  box-shadow:var(--shadow);margin-bottom:14px;overflow:hidden}
+.step-head{display:flex;align-items:center;gap:8px;padding:10px 12px;background:var(--brand-tint2);
+  border-bottom:1px solid var(--line)}
+.stepno{width:28px;height:28px;border-radius:9px;background:var(--brand);color:#fff;
+  display:grid;place-items:center;font-weight:800;font-size:14px;flex:none}
+.step-head .sp{flex:1}
+.minibtn{width:32px;height:32px;border-radius:9px;background:#fff;border:1px solid var(--line);
+  display:grid;place-items:center;font-size:14px;color:var(--muted)}
+.minibtn:active,.minibtn:active{background:#eef3f0}
+.minibtn.del{color:var(--danger);border-color:#fecaca}
+.step-photo{position:relative;background:#0d1a13}
+.step-photo img{width:100%;max-height:340px;object-fit:contain;background:#0d1a13}
+.step-photo .replace{position:absolute;right:10px;bottom:10px;background:rgba(0,0,0,.6);color:#fff;
+  padding:7px 11px;border-radius:10px;font-size:12px;font-weight:700}
+.step-body{padding:12px 14px}
+.step-body .field:last-child{margin-bottom:0}
+
+/* ---------- Viewer ---------- */
+.v-hero{border-radius:var(--radius);overflow:hidden;border:1px solid var(--line);box-shadow:var(--shadow);
+  background:#0d1a13;margin-bottom:14px}
+.v-hero img{width:100%;max-height:300px;object-fit:cover}
+.v-title{font-size:22px;font-weight:900;line-height:1.4;margin:0 0 6px}
+.v-meta{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:16px}
+.v-step{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);
+  box-shadow:var(--shadow);margin-bottom:16px;overflow:hidden}
+.v-step-head{display:flex;gap:10px;align-items:flex-start;padding:13px 14px}
+.v-step-head h3{margin:0;font-size:17px;font-weight:800;line-height:1.45;flex:1}
+.v-step img{width:100%;max-height:70vh;object-fit:contain;background:#0d1a13}
+.v-step .txt{padding:12px 14px;white-space:pre-wrap;font-size:15.5px}
+.caution{
+  margin:0 14px 14px;padding:11px 13px;background:var(--warn-bg);border:1px solid var(--warn-line);
+  border-radius:12px;color:#7c4a03;font-size:14.5px;white-space:pre-wrap;
+}
+.caution b{color:var(--warn);display:block;font-size:12px;letter-spacing:.06em;margin-bottom:3px}
+.hist{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:6px 14px}
+.hist li{padding:9px 0;border-bottom:1px dashed var(--line);font-size:13.5px;list-style:none}
+.hist li:last-child{border-bottom:none}
+.hist ul{margin:0;padding:0}
+.hist .d{color:var(--brand-dark);font-weight:800;font-size:12px}
+
+/* ---------- Sheet / modal ---------- */
+.sheet-bg{position:fixed;inset:0;background:rgba(10,25,17,.5);z-index:60;display:flex;align-items:flex-end;
+  justify-content:center;backdrop-filter:blur(2px)}
+.sheet{
+  background:#fff;width:100%;max-width:560px;border-radius:20px 20px 0 0;
+  padding:18px 18px calc(20px + var(--safe-b));box-shadow:0 -8px 30px rgba(0,0,0,.2);
+  animation:up .18s ease-out;max-height:88vh;overflow:auto;
+}
+@keyframes up{from{transform:translateY(24px);opacity:.6}to{transform:none;opacity:1}}
+.sheet h2{margin:0 0 4px;font-size:18px;font-weight:900}
+.sheet p.lead{margin:0 0 14px;font-size:13.5px;color:var(--muted)}
+
+/* ---------- Toast ---------- */
+#toast{
+  position:fixed;left:50%;bottom:calc(96px + var(--safe-b));transform:translateX(-50%);
+  background:var(--brand-deep);color:#fff;padding:11px 18px;border-radius:999px;font-size:14px;
+  font-weight:700;z-index:90;box-shadow:0 8px 22px rgba(0,0,0,.25);opacity:0;transition:.2s;pointer-events:none;
+  white-space:nowrap;max-width:90vw;overflow:hidden;text-overflow:ellipsis;
+}
+#toast.on{opacity:1}
+
+/* ---------- Print ---------- */
+@media print{
+  .bar,.fabwrap,.noprint{display:none!important}
+  body{background:#fff}
+  .app{max-width:none}
+  .page{padding:0}
+  .v-step,.card,.hist{break-inside:avoid;box-shadow:none}
+  .v-step img{max-height:9cm}
+}
+</style>
+</head>
+<body>
+<div class="app">
+
+  <!-- ============ App bar ============ -->
+  <header class="bar" id="bar">
+    <div class="bar-row">
+      <button class="iconbtn hidden" id="backBtn" aria-label="戻る">‹</button>
+      <h1 id="barTitle">現場マニュアル</h1>
+      <button class="iconbtn" id="menuBtn" aria-label="メニュー">⋯</button>
+    </div>
+    <div class="sub" id="barSub">写真をアップするだけ。スマホで手順書。</div>
+    <div class="searchwrap" id="searchWrap">
+      <span>🔍</span><input type="text" id="q" placeholder="マニュアルを検索（例：給湯器）" autocomplete="off">
+    </div>
+  </header>
+
+  <!-- ============ List view ============ -->
+  <main class="page" id="viewList"></main>
+
+  <!-- ============ Editor view ============ -->
+  <main class="page hidden" id="viewEdit"></main>
+
+  <!-- ============ Viewer view ============ -->
+  <main class="page hidden" id="viewRead"></main>
+
+  <!-- ============ Bottom action ============ -->
+  <div class="fabwrap" id="fab"></div>
+</div>
+
+<div id="toast"></div>
+<input type="file" id="filePick" accept="image/*" multiple class="hidden">
+<input type="file" id="fileImport" accept="application/json" class="hidden">
+
+<script>
+/* =========================================================
+   現場マニュアル  —  写真から業務マニュアルを作るスマホアプリ
+   データは端末内(IndexedDB)に保存。オフラインでも動きます。
+   ========================================================= */
+
+/* ---------- IndexedDB ---------- */
+const DB_NAME = 'genba-manual', DB_VER = 1;
+let _db;
+function db(){
+  if(_db) return Promise.resolve(_db);
+  return new Promise((res,rej)=>{
+    const r = indexedDB.open(DB_NAME, DB_VER);
+    r.onupgradeneeded = e=>{
+      const d = e.target.result;
+      if(!d.objectStoreNames.contains('manuals')) d.createObjectStore('manuals',{keyPath:'id'});
+      if(!d.objectStoreNames.contains('images'))  d.createObjectStore('images',{keyPath:'id'});
+    };
+    r.onsuccess = ()=>{ _db = r.result; res(_db); };
+    r.onerror   = ()=> rej(r.error);
+  });
+}
+async function tx(store, mode, fn){
+  const d = await db();
+  return new Promise((res,rej)=>{
+    const t = d.transaction(store, mode);
+    const s = t.objectStore(store);
+    const req = fn(s);
+    t.oncomplete = ()=> res(req && req.result);
+    t.onerror = ()=> rej(t.error);
+  });
+}
+const idbGet    = (st,id)=> tx(st,'readonly', s=> s.get(id));
+const idbAll    = (st)   => tx(st,'readonly', s=> s.getAll());
+const idbPut    = (st,v) => tx(st,'readwrite',s=> s.put(v));
+const idbDel    = (st,id)=> tx(st,'readwrite',s=> s.delete(id));
+
+/* ---------- Utils ---------- */
+const uid = ()=> Date.now().toString(36) + Math.random().toString(36).slice(2,8);
+const $  = id => document.getElementById(id);
+const esc = s => (s||'').replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+function fmtDate(ts){
+  const d = new Date(ts);
+  return `${d.getFullYear()}/${String(d.getMonth()+1).padStart(2,'0')}/${String(d.getDate()).padStart(2,'0')}`;
+}
+function fmtDateTime(ts){
+  const d = new Date(ts);
+  return `${fmtDate(ts)} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
+}
+function ago(ts){
+  const m = Math.floor((Date.now()-ts)/60000);
+  if(m < 1) return 'たった今';
+  if(m < 60) return `${m}分前`;
+  const h = Math.floor(m/60); if(h < 24) return `${h}時間前`;
+  const d = Math.floor(h/24); if(d < 7) return `${d}日前`;
+  return fmtDate(ts);
+}
+let toastT;
+function toast(msg){
+  const t = $('toast'); t.textContent = msg; t.classList.add('on');
+  clearTimeout(toastT); toastT = setTimeout(()=>t.classList.remove('on'), 2200);
+}
+
+/* 画像を長辺1600pxのJPEGに縮小（スマホ写真をそのまま入れても軽い） */
+function shrink(file){
+  return new Promise(resolve=>{
+    const img = new Image();
+    const url = URL.createObjectURL(file);
+    img.onload = ()=>{
+      const MAX = 1600;
+      let {width:w, height:h} = img;
+      const sc = Math.min(1, MAX/Math.max(w,h));
+      w = Math.round(w*sc); h = Math.round(h*sc);
+      const c = document.createElement('canvas');
+      c.width = w; c.height = h;
+      c.getContext('2d').drawImage(img,0,0,w,h);
+      URL.revokeObjectURL(url);
+      c.toBlob(b=> resolve(b || file), 'image/jpeg', 0.82);
+    };
+    img.onerror = ()=>{ URL.revokeObjectURL(url); resolve(file); };
+    img.src = url;
+  });
+}
+const urlCache = new Map();
+async function imgUrl(imageId){
+  if(!imageId) return null;
+  if(urlCache.has(imageId)) return urlCache.get(imageId);
+  const rec = await idbGet('images', imageId);
+  if(!rec) return null;
+  const u = URL.createObjectURL(rec.blob);
+  urlCache.set(imageId, u);
+  return u;
+}
+async function saveImage(file){
+  const blob = await shrink(file);
+  const id = 'img_' + uid();
+  await idbPut('images', {id, blob});
+  return id;
+}
+/* 画面上の <img data-img="id"> を一括で解決 */
+async function hydrateImages(root=document){
+  const nodes = [...root.querySelectorAll('img[data-img]')];
+  await Promise.all(nodes.map(async n=>{
+    const u = await imgUrl(n.dataset.img);
+    if(u) n.src = u;
+  }));
+}
+
+/* ---------- State ---------- */
+let manuals = [];     // 一覧用（新しい順）
+let current = null;   // 編集/閲覧中のマニュアル
+let view = 'list';
+let dirty = false;
+
+async function loadAll(){
+  manuals = (await idbAll('manuals')) || [];
+  manuals.sort((a,b)=> b.updatedAt - a.updatedAt);
+}
+
+/* ---------- Navigation ---------- */
+function setView(v, opt={}){
+  view = v;
+  ['viewList','viewEdit','viewRead'].forEach(id=> $(id).classList.add('hidden'));
+  $('searchWrap').classList.toggle('hidden', v !== 'list');
+  $('backBtn').classList.toggle('hidden', v === 'list');
+  $('menuBtn').classList.toggle('hidden', v !== 'list');
+  window.scrollTo(0,0);
+  if(v === 'list'){
+    $('barTitle').textContent = '現場マニュアル';
+    $('barSub').textContent = '写真をアップするだけ。スマホで手順書。';
+    $('viewList').classList.remove('hidden');
+    renderList();
+  }else if(v === 'edit'){
+    $('barTitle').textContent = opt.isNew ? '新しいマニュアル' : 'マニュアルを編集';
+    $('barSub').textContent = '写真ごとに手順を書き足せます';
+    $('viewEdit').classList.remove('hidden');
+    renderEdit();
+  }else{
+    $('barTitle').textContent = current ? current.title : 'マニュアル';
+    $('barSub').textContent = current ? '最終更新 ' + fmtDateTime(current.updatedAt) : '';
+    $('viewRead').classList.remove('hidden');
+    renderRead();
+  }
+}
+$('backBtn').onclick = ()=>{
+  if(view === 'edit' && dirty){
+    confirmSheet('保存せずに戻りますか？','編集中の内容は破棄されます。','破棄して戻る', ()=>{ dirty=false; current=null; setView('list'); });
+    return;
+  }
+  if(view === 'edit' && current && current._from === 'read'){ setView('read'); return; }
+  current = null; setView('list');
+};
+
+/* =========================================================
+   一覧
+   ========================================================= */
+function renderList(){
+  const q = ($('q').value || '').trim().toLowerCase();
+  const list = manuals.filter(m=>{
+    if(!q) return true;
+    const hay = [m.title, m.place, ...(m.steps||[]).map(s=> s.title+' '+s.body+' '+s.caution)].join(' ').toLowerCase();
+    return hay.includes(q);
+  });
+
+  const el = $('viewList');
+  if(!manuals.length){
+    el.innerHTML = `
+      <div class="empty">
+        <div class="em">📗</div>
+        <h2>まだマニュアルがありません</h2>
+        <div class="tiny">現場の写真を撮って、そのままマニュアルにしましょう。</div>
+        <ol class="steps-guide">
+          <li><b>① 写真を選ぶ</b>（何枚でもOK・カメラ撮影も可）</li>
+          <li><b>② タイトルを付ける</b>（例：給湯器リモコンの操作）</li>
+          <li><b>③ 各写真に手順・注意点を書く</b></li>
+          <li><b>④ 保存</b> → 以後は追記して日々更新</li>
+        </ol>
+      </div>`;
+  }else if(!list.length){
+    el.innerHTML = `<div class="empty"><div class="em">🔍</div><h2>見つかりませんでした</h2>
+      <div class="tiny">別のことばで検索してください。</div></div>`;
+  }else{
+    const recent = list.filter(m=> Date.now()-m.updatedAt < 3*86400000).length;
+    el.innerHTML = `
+      <div class="sec-title" style="margin-top:6px">マニュアル ${list.length}件${recent?`　/　最近更新 ${recent}件`:''}</div>
+      ${list.map(m=>{
+        const cover = (m.steps||[]).find(s=> s.imageId);
+        const isNew = Date.now()-m.updatedAt < 3*86400000;
+        return `
+        <div class="card">
+          <button class="mcard" data-open="${m.id}">
+            <div class="thumb">${cover
+              ? `<img data-img="${cover.imageId}" alt="">`
+              : `<div class="ph">📷</div>`}</div>
+            <div class="body">
+              <h3>${esc(m.title)}</h3>
+              <div class="meta">
+                ${m.place ? `<span class="pill">${esc(m.place)}</span>` : ''}
+                <span class="pill gray">${(m.steps||[]).length}手順</span>
+                ${isNew ? `<span class="pill new">更新</span>` : ''}
+              </div>
+              <div class="meta" style="margin-top:5px">
+                <span>改訂 v${(m.history||[]).length} ・ ${ago(m.updatedAt)}</span>
+              </div>
+            </div>
+          </button>
+        </div>`;
+      }).join('')}`;
+  }
+  hydrateImages(el);
+  el.querySelectorAll('[data-open]').forEach(b=> b.onclick = ()=> openManual(b.dataset.open));
+
+  $('fab').innerHTML = `<button class="btn" id="newBtn">📷　写真からマニュアルを作る</button>`;
+  $('newBtn').onclick = startNew;
+}
+$('q').oninput = ()=> { if(view==='list') renderList(); };
+
+async function openManual(id){
+  current = await idbGet('manuals', id);
+  if(!current) return;
+  setView('read');
+}
+
+/* =========================================================
+   新規作成（写真を選ぶところから）
+   ========================================================= */
+let pickMode = null; // 'new' | 'append' | {replace: stepId}
+function pickPhotos(mode){
+  pickMode = mode;
+  $('filePick').value = '';
+  $('filePick').multiple = !(mode && mode.replace);
+  $('filePick').click();
+}
+function startNew(){ pickPhotos('new'); }
+
+$('filePick').onchange = async e=>{
+  const files = [...e.target.files].filter(f=> f.type.startsWith('image/'));
+  if(!files.length) return;
+  toast('写真を読み込み中…');
+  const ids = [];
+  for(const f of files) ids.push(await saveImage(f));
+
+  if(pickMode === 'new'){
+    current = {
+      id: 'man_' + uid(),
+      title: '',
+      place: '',
+      steps: ids.map((imageId,i)=> ({id:'st_'+uid(), imageId, title:'', body:'', caution:'', updatedAt:Date.now()})),
+      createdAt: Date.now(),
+      updatedAt: Date.now(),
+      history: [],
+      _isNew: true
+    };
+    setView('edit', {isNew:true});
+    toast(`${ids.length}枚の写真を読み込みました`);
+  }else if(pickMode === 'append'){
+    ids.forEach(imageId=> current.steps.push({id:'st_'+uid(), imageId, title:'', body:'', caution:'', updatedAt:Date.now()}));
+    dirty = true; renderEdit();
+    toast(`${ids.length}枚を追加しました`);
+  }else if(pickMode && pickMode.replace){
+    const st = current.steps.find(s=> s.id === pickMode.replace);
+    if(st){ st.imageId = ids[0]; st.updatedAt = Date.now(); dirty = true; renderEdit(); toast('写真を差し替えました'); }
+  }
+  pickMode = null;
+};
+
+/* =========================================================
+   編集画面
+   ========================================================= */
+const TITLE_CHIPS = ['給湯器の操作','リモコン操作','日常点検','開店準備','清掃手順','緊急時の対応'];
+const PLACE_CHIPS = ['1号棟','管理棟','客室','厨房','屋外設備','事務所'];
+
+function renderEdit(){
+  const m = current;
+  const el = $('viewEdit');
+  el.innerHTML = `
+    <div class="field">
+      <label for="fTitle">マニュアルのタイトル <span class="muted tiny">（必須）</span></label>
+      <input type="text" id="fTitle" placeholder="例：給湯器リモコンの操作手順" value="${esc(m.title)}">
+      <div class="chips" id="titleChips">${TITLE_CHIPS.map(c=>`<button class="chip" data-t="${c}">${c}</button>`).join('')}</div>
+    </div>
+    <div class="field">
+      <label for="fPlace">場所・設備名 <span class="muted tiny">（任意）</span></label>
+      <input type="text" id="fPlace" placeholder="例：屋外設備 / PURPOSE GS-2402W-1" value="${esc(m.place)}">
+      <div class="chips" id="placeChips">${PLACE_CHIPS.map(c=>`<button class="chip" data-p="${c}">${c}</button>`).join('')}</div>
+    </div>
+
+    <div class="sec-title">手順（写真 ${m.steps.length} 枚）</div>
+    ${m.steps.map((s,i)=>`
+      <div class="step" data-step="${s.id}">
+        <div class="step-head">
+          <div class="stepno">${i+1}</div>
+          <div class="sp"></div>
+          <button class="minibtn" data-up="${s.id}" ${i===0?'disabled style="opacity:.35"':''} aria-label="上へ">↑</button>
+          <button class="minibtn" data-down="${s.id}" ${i===m.steps.length-1?'disabled style="opacity:.35"':''} aria-label="下へ">↓</button>
+          <button class="minibtn del" data-del="${s.id}" aria-label="削除">✕</button>
+        </div>
+        <div class="step-photo">
+          ${s.imageId ? `<img data-img="${s.imageId}" alt="手順${i+1}">` : ''}
+          <button class="replace" data-replace="${s.id}">写真を変更</button>
+        </div>
+        <div class="step-body">
+          <div class="field">
+            <label>この写真の見出し</label>
+            <input type="text" data-f="title" data-id="${s.id}" placeholder="例：運転スイッチを入れる" value="${esc(s.title)}">
+          </div>
+          <div class="field">
+            <label>作業内容・説明</label>
+            <textarea data-f="body" data-id="${s.id}" placeholder="例：ふたを開け、緑の「運転 入／切」ボタンを1回押す。表示が点灯すれば給湯可能。">${esc(s.body)}</textarea>
+          </div>
+          <div class="field">
+            <label>⚠️ 注意点 <span class="muted tiny">（任意）</span></label>
+            <textarea data-f="caution" data-id="${s.id}" placeholder="例：使用中に他の人が温度を変えないこと。やけど注意。">${esc(s.caution)}</textarea>
+          </div>
+        </div>
+      </div>`).join('')}
+
+    <button class="btn sub" id="addPhoto" style="margin-top:4px">＋　写真を追加する</button>
+
+    ${m._isNew ? '' : `
+      <div class="sec-title">改訂履歴</div>
+      <div class="hist">${historyHTML(m)}</div>
+      <button class="btn danger" id="delMan" style="margin-top:18px">このマニュアルを削除</button>`}
+  `;
+  hydrateImages(el);
+
+  $('fTitle').oninput = e=>{ m.title = e.target.value; dirty = true; };
+  $('fPlace').oninput = e=>{ m.place = e.target.value; dirty = true; };
+  el.querySelectorAll('[data-t]').forEach(b=> b.onclick = ()=>{ m.title = b.dataset.t; $('fTitle').value = m.title; dirty = true; });
+  el.querySelectorAll('[data-p]').forEach(b=> b.onclick = ()=>{ m.place = b.dataset.p; $('fPlace').value = m.place; dirty = true; });
+
+  el.querySelectorAll('[data-f]').forEach(inp=>{
+    inp.oninput = e=>{
+      const s = m.steps.find(x=> x.id === inp.dataset.id);
+      if(!s) return;
+      s[inp.dataset.f] = e.target.value; s.updatedAt = Date.now(); dirty = true;
+    };
+  });
+  el.querySelectorAll('[data-up]').forEach(b=> b.onclick = ()=> moveStep(b.dataset.up, -1));
+  el.querySelectorAll('[data-down]').forEach(b=> b.onclick = ()=> moveStep(b.dataset.down, 1));
+  el.querySelectorAll('[data-del]').forEach(b=> b.onclick = ()=>{
+    confirmSheet('この手順を削除しますか？','写真と入力内容が消えます。','削除する', ()=>{
+      m.steps = m.steps.filter(s=> s.id !== b.dataset.del); dirty = true; renderEdit();
+    });
+  });
+  el.querySelectorAll('[data-replace]').forEach(b=> b.onclick = ()=> pickPhotos({replace: b.dataset.replace}));
+  $('addPhoto').onclick = ()=> pickPhotos('append');
+  if($('delMan')) $('delMan').onclick = ()=> deleteManual(m);
+
+  $('fab').innerHTML = `<button class="btn" id="saveBtn">✓　保存する</button>`;
+  $('saveBtn').onclick = saveManual;
+
+  if(m._isNew && !m.title) setTimeout(()=> $('fTitle').focus(), 250);
+}
+function moveStep(id, dir){
+  const i = current.steps.findIndex(s=> s.id === id);
+  const j = i + dir;
+  if(i<0 || j<0 || j>=current.steps.length) return;
+  [current.steps[i], current.steps[j]] = [current.steps[j], current.steps[i]];
+  dirty = true; renderEdit();
+}
+
+/* 保存（2回目以降は「更新メモ」を残して改訂履歴に記録） */
+function saveManual(){
+  const m = current;
+  if(!m.title.trim()){ toast('タイトルを入力してください'); $('fTitle').focus(); return; }
+  if(m._isNew){
+    commitSave('新規作成');
+  }else{
+    noteSheet(note=> commitSave(note || '内容を更新'));
+  }
+}
+async function commitSave(note){
+  const m = current;
+  m.title = m.title.trim();
+  m.place = (m.place||'').trim();
+  m.updatedAt = Date.now();
+  m.history = m.history || [];
+  m.history.unshift({at: Date.now(), note, steps: m.steps.length});
+  delete m._isNew; delete m._from;
+  await idbPut('manuals', JSON.parse(JSON.stringify(m, (k,v)=> k.startsWith('_') ? undefined : v)));
+  dirty = false;
+  await loadAll();
+  current = await idbGet('manuals', m.id);
+  toast('保存しました（v' + m.history.length + '）');
+  setView('read');
+}
+function deleteManual(m){
+  confirmSheet('マニュアルを削除しますか？', `「${m.title || '無題'}」と写真をすべて削除します。元に戻せません。`, '完全に削除', async ()=>{
+    for(const s of m.steps){ if(s.imageId) await idbDel('images', s.imageId); }
+    await idbDel('manuals', m.id);
+    await loadAll(); current = null; dirty = false;
+    toast('削除しました'); setView('list');
+  });
+}
+
+/* =========================================================
+   閲覧画面（現場で見る用）
+   ========================================================= */
+function historyHTML(m){
+  const h = m.history || [];
+  if(!h.length) return '<div class="tiny muted" style="padding:8px 0">まだ履歴はありません</div>';
+  return `<ul>${h.map((x,i)=>`
+    <li><span class="d">v${h.length-i}　${fmtDateTime(x.at)}</span><br>${esc(x.note)}</li>`).join('')}</ul>`;
+}
+function renderRead(){
+  const m = current, el = $('viewRead');
+  el.innerHTML = `
+    <h2 class="v-title">${esc(m.title)}</h2>
+    <div class="v-meta">
+      ${m.place ? `<span class="pill">${esc(m.place)}</span>` : ''}
+      <span class="pill gray">${m.steps.length}手順</span>
+      <span class="pill gray">v${(m.history||[]).length}</span>
+      <span class="tiny muted">最終更新 ${fmtDateTime(m.updatedAt)}</span>
+    </div>
+
+    ${m.steps.map((s,i)=>`
+      <div class="v-step">
+        <div class="v-step-head">
+          <div class="stepno">${i+1}</div>
+          <h3>${esc(s.title) || '手順 ' + (i+1)}</h3>
+        </div>
+        ${s.imageId ? `<img data-img="${s.imageId}" alt="手順${i+1}">` : ''}
+        ${s.body ? `<div class="txt">${esc(s.body)}</div>` : ''}
+        ${s.caution ? `<div class="caution"><b>⚠️ 注意</b>${esc(s.caution)}</div>` : ''}
+      </div>`).join('')}
+
+    <div class="sec-title">改訂履歴</div>
+    <div class="hist">${historyHTML(m)}</div>
+
+    <div class="btnrow noprint" style="margin-top:18px">
+      <button class="btn ghost" id="printBtn">🖨 印刷 / PDF</button>
+      <button class="btn ghost" id="shareBtn">↗ 共有</button>
+    </div>
+  `;
+  hydrateImages(el);
+  $('printBtn').onclick = ()=> window.print();
+  $('shareBtn').onclick = ()=> shareManual(m);
+
+  $('fab').innerHTML = `
+    <div class="btnrow">
+      <button class="btn sub" id="quickAdd" style="flex:1">📷 写真を追加</button>
+      <button class="btn" id="editBtn" style="flex:1">✎ 更新する</button>
+    </div>`;
+  $('editBtn').onclick = ()=>{ current._from = 'read'; setView('edit'); };
+  $('quickAdd').onclick = ()=>{ current._from = 'read'; setView('edit'); setTimeout(()=> pickPhotos('append'), 150); };
+}
+async function shareManual(m){
+  const lines = [`【${m.title}】${m.place ? '（'+m.place+'）' : ''}`, `最終更新 ${fmtDateTime(m.updatedAt)}`, ''];
+  m.steps.forEach((s,i)=>{
+    lines.push(`${i+1}. ${s.title || '手順'+(i+1)}`);
+    if(s.body) lines.push(`   ${s.body.replace(/\n/g,'\n   ')}`);
+    if(s.caution) lines.push(`   ⚠️ ${s.caution.replace(/\n/g,'\n   ')}`);
+    lines.push('');
+  });
+  const text = lines.join('\n');
+  if(navigator.share){ try{ await navigator.share({title:m.title, text}); return; }catch(e){ if(e.name==='AbortError') return; } }
+  try{ await navigator.clipboard.writeText(text); toast('本文をコピーしました'); }
+  catch(e){ toast('共有に対応していません'); }
+}
+
+/* =========================================================
+   シート（確認・更新メモ・メニュー）
+   ========================================================= */
+function sheet(html, setup){
+  const bg = document.createElement('div');
+  bg.className = 'sheet-bg';
+  bg.innerHTML = `<div class="sheet">${html}</div>`;
+  document.body.appendChild(bg);
+  const close = ()=> bg.remove();
+  bg.onclick = e=>{ if(e.target === bg) close(); };
+  setup(bg.querySelector('.sheet'), close);
+  return close;
+}
+function confirmSheet(title, lead, okLabel, onOk){
+  sheet(`
+    <h2>${esc(title)}</h2><p class="lead">${esc(lead)}</p>
+    <button class="btn danger" data-ok style="margin-bottom:10px">${esc(okLabel)}</button>
+    <button class="btn ghost" data-no>キャンセル</button>`,
+  (s, close)=>{
+    s.querySelector('[data-ok]').onclick = ()=>{ close(); onOk(); };
+    s.querySelector('[data-no]').onclick = close;
+  });
+}
+function noteSheet(onOk){
+  sheet(`
+    <h2>更新メモを残す</h2>
+    <p class="lead">何を変えたか一言残すと、現場の人が変更点を追えます。</p>
+    <div class="field"><input type="text" id="noteInput" placeholder="例：注意書きを追加 / 写真を差し替え"></div>
+    <div class="chips" style="margin-bottom:14px">
+      ${['手順を追加','写真を差し替え','注意点を追記','文言を修正','機器交換に対応'].map(c=>`<button class="chip" data-n="${c}">${c}</button>`).join('')}
+    </div>
+    <button class="btn" data-ok style="margin-bottom:10px">この内容で保存</button>
+    <button class="btn ghost" data-no>キャンセル</button>`,
+  (s, close)=>{
+    const inp = s.querySelector('#noteInput');
+    s.querySelectorAll('[data-n]').forEach(b=> b.onclick = ()=> inp.value = b.dataset.n);
+    s.querySelector('[data-ok]').onclick = ()=>{ const v = inp.value.trim(); close(); onOk(v); };
+    s.querySelector('[data-no]').onclick = close;
+    setTimeout(()=> inp.focus(), 200);
+  });
+}
+$('menuBtn').onclick = ()=>{
+  sheet(`
+    <h2>メニュー</h2>
+    <p class="lead">データはこの端末に保存されています（${manuals.length}件）。</p>
+    <button class="btn sub" data-exp style="margin-bottom:10px">⬇ バックアップを書き出す（JSON）</button>
+    <button class="btn sub" data-imp style="margin-bottom:10px">⬆ バックアップを読み込む</button>
+    <button class="btn ghost" data-no>閉じる</button>
+    <p class="tiny muted" style="margin-top:14px;text-align:center">
+      ホーム画面に追加すると、アプリのように起動できます。</p>`,
+  (s, close)=>{
+    s.querySelector('[data-exp]').onclick = ()=>{ close(); exportAll(); };
+    s.querySelector('[data-imp]').onclick = ()=>{ close(); $('fileImport').click(); };
+    s.querySelector('[data-no]').onclick = close;
+  });
+};
+
+/* =========================================================
+   バックアップ（写真ごとJSONに入れる）
+   ========================================================= */
+const blobToDataURL = b => new Promise(r=>{ const f = new FileReader(); f.onload = ()=> r(f.result); f.readAsDataURL(b); });
+const dataURLToBlob = async d => (await fetch(d)).blob();
+
+async function exportAll(){
+  toast('書き出し中…');
+  const images = {};
+  for(const m of manuals){
+    for(const s of m.steps){
+      if(s.imageId && !images[s.imageId]){
+        const rec = await idbGet('images', s.imageId);
+        if(rec) images[s.imageId] = await blobToDataURL(rec.blob);
+      }
+    }
+  }
+  const data = {app:'genba-manual', version:1, exportedAt:Date.now(), manuals, images};
+  const url = URL.createObjectURL(new Blob([JSON.stringify(data)], {type:'application/json'}));
+  const a = document.createElement('a');
+  a.href = url; a.download = `現場マニュアル_${fmtDate(Date.now()).replace(/\//g,'')}.json`;
+  a.click();
+  setTimeout(()=> URL.revokeObjectURL(url), 4000);
+  toast('バックアップを保存しました');
+}
+$('fileImport').onchange = async e=>{
+  const f = e.target.files[0]; if(!f) return;
+  try{
+    const data = JSON.parse(await f.text());
+    if(data.app !== 'genba-manual') throw new Error('形式が違います');
+    for(const [id, durl] of Object.entries(data.images || {})){
+      await idbPut('images', {id, blob: await dataURLToBlob(durl)});
+    }
+    for(const m of data.manuals || []) await idbPut('manuals', m);
+    await loadAll(); setView('list');
+    toast(`${(data.manuals||[]).length}件を読み込みました`);
+  }catch(err){ toast('読み込めませんでした'); }
+  e.target.value = '';
+};
+
+/* ---------- 離脱ガード ---------- */
+window.addEventListener('beforeunload', e=>{ if(dirty){ e.preventDefault(); e.returnValue = ''; } });
+
+/* ---------- 起動 ---------- */
+(async ()=>{
+  await loadAll();
+  setView('list');
+  if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(()=>{});
+})();
+</script>
+</body>
+</html>
