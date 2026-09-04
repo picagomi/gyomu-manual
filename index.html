@@ -242,6 +242,18 @@ button{cursor:pointer;border:none;background:none}
 .swipe.open .step{transform:translateX(-96px)}
 .swipe-hint{font-size:11.5px;color:var(--muted);text-align:center;margin:-6px 0 12px}
 
+/* ---------- ゴミ箱 ---------- */
+.trash-row{display:flex;gap:11px;padding:11px 0;border-bottom:1px dashed var(--line)}
+.trash-row:last-of-type{border-bottom:none}
+.trash-thumb{width:58px;height:58px;flex:none;border-radius:11px;overflow:hidden;
+  background:var(--brand-tint2);display:grid;place-items:center;font-size:22px;opacity:.9}
+.trash-thumb img{width:100%;height:100%;object-fit:cover}
+.trash-body{flex:1;min-width:0}
+.trash-t{font-size:14.5px;font-weight:800;line-height:1.45;
+  display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.trash-acts{display:flex;gap:8px;margin-top:8px}
+.btn.sm.danger{background:#fff;color:var(--danger);border:1.5px solid #fecaca;box-shadow:none}
+
 /* ---------- 枝（マインドマップ表示） ---------- */
 .stepwrap{margin-bottom:16px}
 .stepwrap .v-step{margin-bottom:0}
@@ -595,23 +607,32 @@ function migrate(m){
   delete m.place;
   if(!m.progress || typeof m.progress !== 'object') m.progress = {};
   if(!Array.isArray(m.rounds)) m.rounds = [];
-  (m.steps || []).forEach(s=>{
-    if(!Array.isArray(s.placeIds)) s.placeIds = [];
-    if(!Array.isArray(s.imageIds)) s.imageIds = s.imageId ? [s.imageId] : [];
-    delete s.imageId;
-    if(!Array.isArray(s.branches)) s.branches = [];
-    s.branches.forEach(b=>{ if(!Array.isArray(b.imageIds)) b.imageIds = []; });
-  });
+  if(!Array.isArray(m.trash)) m.trash = [];
+  m.trash = m.trash.filter(t=> t && t.step);
+  m.trash.forEach(t=> normalizeStep(t.step));
+  (m.steps || []).forEach(normalizeStep);
   return m;
+}
+function normalizeStep(s){
+  if(!s) return s;
+  if(!Array.isArray(s.placeIds)) s.placeIds = [];
+  if(!Array.isArray(s.imageIds)) s.imageIds = s.imageId ? [s.imageId] : [];
+  delete s.imageId;
+  if(!Array.isArray(s.branches)) s.branches = [];
+  s.branches.forEach(b=>{ if(!Array.isArray(b.imageIds)) b.imageIds = []; });
+  return s;
 }
 const placesOf = m => m.places || [];
 /* マニュアルが持つ写真IDを全部（枝の写真もふくむ） */
+function stepImageIds(s){
+  const ids = [...((s && s.imageIds) || [])];
+  ((s && s.branches) || []).forEach(b=> (b.imageIds||[]).forEach(id=> ids.push(id)));
+  return ids;
+}
 function allImageIds(m){
   const ids = [];
-  (m.steps||[]).forEach(s=>{
-    (s.imageIds||[]).forEach(id=> ids.push(id));
-    (s.branches||[]).forEach(b=> (b.imageIds||[]).forEach(id=> ids.push(id)));
-  });
+  (m.steps||[]).forEach(s=> ids.push(...stepImageIds(s)));
+  (m.trash||[]).forEach(t=> ids.push(...stepImageIds(t.step)));
   return ids;
 }
 const doneCount = m => placesOf(m).filter(p=> (m.progress||{})[p.id]).length;
@@ -993,10 +1014,10 @@ function renderEdit(){
     </div>
 
     <div class="sec-title">手順（写真 ${m.steps.length} 枚）</div>
-    ${m.steps.length ? '<div class="swipe-hint">← 手順を左にスライドすると削除ボタンが出ます</div>' : ''}
+    ${m.steps.length ? '<div class="swipe-hint">← 手順を左にスライドすると「ゴミ箱へ」が出ます</div>' : ''}
     ${m.steps.map((s,i)=>`
      <div class="swipe" data-swipe="${s.id}">
-      <button class="swipe-del" data-del="${s.id}">🗑<br>削除</button>
+      <button class="swipe-del" data-del="${s.id}">🗑<br>ゴミ箱へ</button>
       <div class="step" data-step="${s.id}">
         <div class="step-head">
           <div class="stepno">${i+1}</div>
@@ -1073,6 +1094,25 @@ function renderEdit(){
 
     <button class="btn sub" id="addPhoto" style="margin-top:4px">＋　写真を追加する</button>
 
+    ${(m.trash||[]).length ? foldBlock('🗑 ゴミ箱', `${m.trash.length}件`, `
+      <div class="tiny muted" style="margin:4px 0 2px">「戻す」で元の位置に復元できます。写真も残っています。</div>
+      ${m.trash.map(t=>`
+        <div class="trash-row">
+          <div class="trash-thumb">${(t.step.imageIds||[]).length
+            ? `<img data-img="${t.step.imageIds[0]}" alt="">` : '<span>📄</span>'}</div>
+          <div class="trash-body">
+            <div class="trash-t">${esc(t.step.title) || '（見出しなし）'}</div>
+            <div class="tiny muted">${fmtDateTime(t.at)} に移動${
+              (t.step.branches||[]).length ? `　枝${t.step.branches.length}` : ''}</div>
+            <div class="trash-acts">
+              <button class="btn sm sub" data-restore="${t.step.id}">↩ 戻す</button>
+              <button class="btn sm danger" data-purge="${t.step.id}">完全に削除</button>
+            </div>
+          </div>
+        </div>`).join('')}
+      <button class="btn sm ghost" data-emptytrash style="margin-top:12px">ゴミ箱を空にする</button>
+    `) : ''}
+
     ${m._isNew ? '' : `
       ${foldBlock('改訂履歴', `v${(m.history||[]).length}`,
         `<div class="hist" style="border:none;padding:0">${historyHTML(m)}</div>`)}
@@ -1125,10 +1165,14 @@ function renderEdit(){
   });
   el.querySelectorAll('[data-up]').forEach(b=> b.onclick = ()=> moveStep(b.dataset.up, -1));
   el.querySelectorAll('[data-down]').forEach(b=> b.onclick = ()=> moveStep(b.dataset.down, 1));
-  el.querySelectorAll('[data-del]').forEach(b=> b.onclick = ()=> deleteStepWithUndo(b.dataset.del));
+  el.querySelectorAll('[data-del]').forEach(b=> b.onclick = ()=> moveStepToTrash(b.dataset.del));
   el.querySelectorAll('.swipe').forEach(initSwipe);
 
   /* --- 枝（追加事項）--- */
+  el.querySelectorAll('[data-restore]').forEach(b=> b.onclick = ()=> restoreFromTrash(b.dataset.restore));
+  el.querySelectorAll('[data-purge]').forEach(b=> b.onclick = ()=> purgeFromTrash(b.dataset.purge));
+  if(el.querySelector('[data-emptytrash]')) el.querySelector('[data-emptytrash]').onclick = emptyTrash;
+
   el.querySelectorAll('[data-braddbr]').forEach(b=> b.onclick = ()=>{
     const st = m.steps.find(x=> x.id === b.dataset.braddbr);
     if(!st) return;
@@ -1212,15 +1256,55 @@ function initSwipe(box){
   card.addEventListener('pointercancel', end);
   card.addEventListener('pointerleave', end);
 }
-/* 削除は「元に戻す」で取り消せる */
-function deleteStepWithUndo(id){
+/* 削除＝ゴミ箱へ移動。あとから戻せます */
+function moveStepToTrash(id){
   const i = current.steps.findIndex(s=> s.id === id);
   if(i < 0) return;
-  const removed = current.steps[i];
-  current.steps.splice(i, 1);
+  const removed = current.steps.splice(i, 1)[0];
+  current.trash = current.trash || [];
+  current.trash.unshift({at: Date.now(), index: i, step: removed});
   dirty = true; renderEdit();
-  toastAction(`手順${i+1}を削除しました`, '元に戻す', ()=>{
-    current.steps.splice(i, 0, removed); dirty = true; renderEdit();
+  toastAction(`手順${i+1}をゴミ箱へ移動しました`, '元に戻す', ()=> restoreFromTrash(removed.id));
+}
+/* ゴミ箱から元の位置へ戻す */
+function restoreFromTrash(stepId){
+  const k = (current.trash||[]).findIndex(t=> t.step.id === stepId);
+  if(k < 0) return;
+  const t = current.trash.splice(k, 1)[0];
+  const at = Math.min(typeof t.index === 'number' ? t.index : current.steps.length, current.steps.length);
+  current.steps.splice(at, 0, normalizeStep(t.step));
+  dirty = true; renderEdit();
+  toast(`手順を${at + 1}番目に戻しました`);
+}
+/* 完全に削除（写真も消えます） */
+function purgeFromTrash(stepId){
+  const k = (current.trash||[]).findIndex(t=> t.step.id === stepId);
+  if(k < 0) return;
+  const t = current.trash[k];
+  confirmSheet('完全に削除しますか？',
+    `「${t.step.title || '見出しなし'}」と、その写真が元に戻せなくなります。`, '完全に削除', async ()=>{
+    for(const id of stepImageIds(t.step)){
+      await idbDel('images', id);
+      if(isCloud()) await Cloud.delPhoto(id);
+    }
+    current.trash.splice(k, 1);
+    dirty = true; renderEdit();
+    toast('完全に削除しました');
+  });
+}
+function emptyTrash(){
+  const n = (current.trash||[]).length;
+  if(!n) return;
+  confirmSheet('ゴミ箱を空にしますか？', `${n}件の手順と写真が元に戻せなくなります。`, '空にする', async ()=>{
+    for(const t of current.trash){
+      for(const id of stepImageIds(t.step)){
+        await idbDel('images', id);
+        if(isCloud()) await Cloud.delPhoto(id);
+      }
+    }
+    current.trash = [];
+    dirty = true; renderEdit();
+    toast('ゴミ箱を空にしました');
   });
 }
 function moveStep(id, dir){
