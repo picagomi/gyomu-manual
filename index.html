@@ -234,13 +234,22 @@ button{cursor:pointer;border:none;background:none}
 .logbox li:last-child{border-bottom:none}
 .logbox ul{margin:0;padding:0}
 
-/* ---------- スライドで削除 ---------- */
-.swipe{position:relative;margin-bottom:14px;border-radius:var(--radius);overflow:hidden;background:transparent}
-.swipe-del{position:absolute;top:0;right:0;bottom:0;width:96px;background:var(--danger);color:#fff;
-  font-size:13px;font-weight:800;display:grid;place-items:center;line-height:1.5;text-align:center}
-.swipe .step{margin-bottom:0;position:relative;transition:transform .18s ease;touch-action:pan-y}
-.swipe.open .step{transform:translateX(-96px)}
-.swipe-hint{font-size:11.5px;color:var(--muted);text-align:center;margin:-6px 0 12px}
+/* ---------- 手順の一覧（タップして操作を選ぶ） ---------- */
+.srow{display:flex;align-items:center;gap:11px;width:100%;text-align:left;
+  background:var(--card);border:1px solid var(--line);border-radius:14px;
+  box-shadow:var(--shadow);padding:11px 12px;margin-bottom:10px}
+.srow:active{background:var(--brand-tint2)}
+.srow .stepno{flex:none}
+.srow-thumb{width:52px;height:52px;flex:none;border-radius:10px;overflow:hidden;
+  background:var(--brand-tint2);display:grid;place-items:center;font-size:20px}
+.srow-thumb img{width:100%;height:100%;object-fit:cover}
+.srow-body{flex:1;min-width:0;display:block}
+.srow-t{display:block;font-size:15px;font-weight:800;line-height:1.4;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.srow-meta{display:block;font-size:11.5px;color:var(--muted);margin-top:3px;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.srow-arrow{flex:none;color:var(--brand);font-size:22px;font-weight:800;line-height:1}
+.btn:disabled{opacity:.4}
 
 /* ---------- ゴミ箱 ---------- */
 .trash-row{display:flex;gap:11px;padding:11px 0;border-bottom:1px dashed var(--line)}
@@ -675,6 +684,7 @@ function setView(v, opt={}){
   }else if(v === 'edit'){
     $('barTitle').textContent = opt.isNew ? '新しいマニュアル' : 'マニュアルを編集';
     $('barSub').textContent = '写真ごとに手順を書き足せます';
+    editStep = null;
     $('viewEdit').classList.remove('hidden');
     renderEdit();
   }else{
@@ -685,7 +695,7 @@ function setView(v, opt={}){
   }
 }
 function goHome(){
-  current = null; readSel = null; setView('list');
+  current = null; readSel = null; editStep = null; setView('list');
 }
 /* 編集中は破棄の確認をはさむ */
 function leaveEdit(go){
@@ -695,14 +705,18 @@ function leaveEdit(go){
   }
   go();
 }
-$('backBtn').onclick = ()=> leaveEdit(()=>{
+$('backBtn').onclick = ()=>{
+  // 手順を編集しているときは、まず手順の一覧へ
+  if(view === 'edit' && editStep){ editStep = null; renderEdit(); window.scrollTo(0,0); return; }
+  leaveEdit(()=>{
   if(view === 'edit' && current && current._from === 'read'){ delete current._from; setView('read'); return; }
   // 手順を見ているときは、まず「場所えらび」に戻る
   if(view === 'read' && current && readSel !== null && placesOf(current).length >= 2){
     readSel = null; renderRead(); return;
   }
   goHome();
-});
+  });
+};
 $('homeBtn').onclick = ()=> leaveEdit(goHome);
 
 /* =========================================================
@@ -725,15 +739,14 @@ function renderList(){
         <h2>まだマニュアルがありません</h2>
         <div class="tiny">現場の写真を撮って、そのままマニュアルにしましょう。</div>
         <ol class="steps-guide">
-          <li><b>① 写真を選ぶ</b>（何枚でもOK・カメラ撮影も可）</li>
+          <li><b>①「＋ マニュアルを追加」</b>を押す</li>
           <li><b>② タイトルを付ける</b>（例：給湯器リモコンの操作）</li>
-          <li><b>③ 各写真に手順・注意点を書く</b></li>
-          <li><b>④ 保存</b> → 以後は追記して日々更新</li>
+          <li><b>③ 写真から手順を追加</b>（何枚でもOK・カメラ撮影も可）</li>
+          <li><b>④ 手順をタップして中身を書く</b> → 保存</li>
         </ol>
         <div class="tiny" style="margin-top:12px;line-height:1.7">
           受付・コテージ・ヴィラなど<b>複数の場所</b>を登録すると、<br>
-          場所ごとに手順を出し分けて「対応済」チェックができます。<br>
-          <b>「📋 ひな形」</b>から、停電対応などの型を呼び出せます。
+          場所ごとに手順を出し分けて「対応済」チェックができます。
         </div>
       </div>`;
   }else if(!list.length){
@@ -775,13 +788,8 @@ function renderList(){
   hydrateImages(el);
   el.querySelectorAll('[data-open]').forEach(b=> b.onclick = ()=> openManual(b.dataset.open));
 
-  $('fab').innerHTML = `
-    <div class="btnrow">
-      <button class="btn" id="newBtn" style="flex:2">📷　写真からつくる</button>
-      <button class="btn sub" id="tplBtn" style="flex:1;min-width:0">📋 ひな形</button>
-    </div>`;
-  $('newBtn').onclick = startNew;
-  $('tplBtn').onclick = templateSheet;
+  $('fab').innerHTML = `<button class="btn" id="newBtn">＋　マニュアルを追加</button>`;
+  $('newBtn').onclick = newManual;
 }
 $('q').oninput = ()=> { if(view==='list') renderList(); };
 
@@ -803,7 +811,19 @@ function pickPhotos(mode){
   $('filePick').multiple = true;
   $('filePick').click();
 }
-function startNew(){ pickPhotos('new'); }
+/* 新しいマニュアルを作る（タイトルを決めてから、写真で手順を足していく） */
+function newManual(){
+  current = {
+    id: 'man_' + uid(),
+    title: '',
+    places: [], progress: {}, rounds: [], trash: [],
+    steps: [],
+    createdAt: Date.now(), updatedAt: Date.now(),
+    history: [], _isNew: true
+  };
+  editStep = null;
+  setView('edit', {isNew:true});
+}
 
 $('filePick').onchange = async e=>{
   const files = [...e.target.files].filter(f=> f.type.startsWith('image/'));
@@ -812,22 +832,7 @@ $('filePick').onchange = async e=>{
   const ids = [];
   for(const f of files) ids.push(await saveImage(f));
 
-  if(pickMode === 'new'){
-    current = {
-      id: 'man_' + uid(),
-      title: '',
-      places: [],
-      progress: {},
-      rounds: [],
-      steps: ids.map(imageId=> ({id:'st_'+uid(), imageIds:[imageId], title:'', body:'', caution:'', placeIds:[], updatedAt:Date.now()})),
-      createdAt: Date.now(),
-      updatedAt: Date.now(),
-      history: [],
-      _isNew: true
-    };
-    setView('edit', {isNew:true});
-    toast(`${ids.length}枚の写真を読み込みました`);
-  }else if(pickMode === 'append'){
+  if(pickMode === 'append'){
     ids.forEach(imageId=> current.steps.push({id:'st_'+uid(), imageIds:[imageId], title:'', body:'', caution:'', placeIds:[], updatedAt:Date.now()}));
     dirty = true; renderEdit();
     toast(`${ids.length}枚を追加しました`);
@@ -850,148 +855,24 @@ $('filePick').onchange = async e=>{
 };
 
 /* =========================================================
-   ひな形（テンプレート）
-   ※ 文章は「型」です。実際の設備・連絡先に合わせて直してお使いください。
-   ========================================================= */
-const NAGOMI_PLACES = ['受付','コテージ','ヴィラ','カフェ','ドッグスパ','ドッグラン','753カフェ'];
-
-const TEMPLATES = [
-{
-  title: '停電時復旧マニュアル',
-  desc: '7拠点の対応チェックつき。共通手順＋拠点ごとの手順が入った状態でつくります',
-  places: NAGOMI_PLACES,
-  steps: [
-    { t:'まず安全確認', p:[],
-      b:'暗い場所は懐中電灯を使って移動する。お客様とスタッフの安全（ケガ・転倒・エレベーターや室内への閉じ込め）を最優先で確認する。',
-      c:'焦げくさい・煙・火花が見えるときは、ブレーカーに触らずすぐに管理者と消防へ連絡。' },
-    { t:'停電の範囲を確認', p:[],
-      b:'近隣の建物や街灯も消えているか確認する。\n・地域一帯が停電 → 電力会社の復旧待ち。お客様へ状況を案内。\n・自社だけが停電 → 次の手順で分電盤を確認。\n\n電力会社の停電情報／連絡先：（ここに記入してください）',
-      c:'' },
-    { t:'分電盤の位置を確認', p:[],
-      b:'各拠点の分電盤の扉を開け、主幹ブレーカー・漏電ブレーカー・子ブレーカーの状態を見る。\n※この手順に、実際の分電盤の写真を追加してください。',
-      c:'濡れた手で触らない。ブレーカーが熱い・焦げているときは触らず管理者へ連絡。' },
-    { t:'ブレーカーを戻す手順', p:[],
-      b:'① 子ブレーカーをすべて「切」にする\n② 漏電ブレーカーを「入」にする\n③ 主幹ブレーカーを「入」にする\n④ 子ブレーカーを1つずつ「入」にする\n\n途中で落ちたら、その回路が原因。そこは「切」のままにして管理者へ連絡する。',
-      c:'原因が分からないまま何度も入れ直さない。' },
-    { t:'受付の復旧確認', p:['受付'],
-      b:'POSレジ・電話・予約用PC・Wi-Fiルーターの電源を入れ直す。ルーターは電源を入れてから3分ほど待つ。予約システムがつながるか確認する。', c:'' },
-    { t:'コテージの復旧確認', p:['コテージ'],
-      b:'各棟の分電盤を確認。給湯器のリモコン表示、エアコン、冷蔵庫の通電を確認する。滞在中のお客様がいる棟は先に声かけをする。', c:'' },
-    { t:'ヴィラの復旧確認', p:['ヴィラ'],
-      b:'各室の分電盤を確認。給湯器・エアコン・照明・冷蔵庫の通電を確認する。滞在中のお客様がいる部屋は先に声かけをする。', c:'' },
-    { t:'厨房・冷蔵設備の確認', p:['カフェ','753カフェ'],
-      b:'冷蔵庫・冷凍庫の温度計を確認して記録する。停電していた時間もあわせて記録する。製氷機・コーヒーマシン・レジの復帰も確認する。',
-      c:'温度が上がった食材は自己判断で提供しない。必ず管理者に確認する。' },
-    { t:'ドッグスパの復旧確認', p:['ドッグスパ'],
-      b:'給湯・温水設備、ドライヤー、換気扇の通電を確認する。お預かり中のワンちゃんがいる場合は、室温と様子を先に確認する。', c:'' },
-    { t:'ドッグランの復旧確認', p:['ドッグラン'],
-      b:'照明・門扉・電気柵の通電を確認する。夜間は暗くなるため、お客様とワンちゃんの安全確保を優先する。', c:'' },
-    { t:'復旧後の共通チェック', p:[],
-      b:'照明・給湯器・冷蔵庫の通電を確認。時計やタイマーの再設定が必要な機器（給湯器の予約、券売機、BGM機器など）を確認する。', c:'' },
-    { t:'記録して報告', p:[],
-      b:'発生時刻／復旧時刻／停電の範囲／対応した人 を記録し、管理者へ報告する。気づいたことはこのマニュアルに追記して次回に活かす。', c:'' }
-  ]
-},
-{
-  title: '給湯器の運転（写真つきの実例）',
-  desc: '屋外の給湯器と PURPOSE リモコン MC-100 の運転手順。実際の写真つきで読み込みます',
-  url: 'samples/kyutouki-mc100.json'
-},
-{
-  title: '（空）複数拠点の対応マニュアル',
-  desc: '7拠点だけ入った空のマニュアル。日常点検・開店準備などを自分で書くとき用',
-  places: NAGOMI_PLACES,
-  steps: []
-}
-];
-
-function templateSheet(){
-  sheet(`
-    <h2>ひな形からつくる</h2>
-    <p class="lead">よく使う型を用意しました。作ったあとで、写真の追加も文章の書き換えもできます。</p>
-    ${TEMPLATES.map((t,i)=>`
-      <button class="btn sub tplbtn" data-tpl="${i}" style="margin-bottom:10px">
-        <span class="t">${esc(t.title)}</span>
-        <span class="d">${esc(t.desc)}</span>
-      </button>`).join('')}
-    <button class="btn ghost" data-no>閉じる</button>
-    <p class="tiny muted" style="margin-top:14px;line-height:1.6">
-      ひな形の文章は「型」です。実際の設備・連絡先に合わせて直してからお使いください。</p>`,
-  (sh, close)=>{
-    sh.querySelectorAll('[data-tpl]').forEach(b=> b.onclick = ()=>{
-      close();
-      const t = TEMPLATES[+b.dataset.tpl];
-      if(t.url) createFromSample(t); else createFromTemplate(t);
-    });
-    sh.querySelector('[data-no]').onclick = close;
-  });
-}
-
-/* 写真つきの実例を読み込む（サイトに置いたJSONを取ってきて、写真ごと複製する） */
-async function createFromSample(t){
-  toast('写真を読み込み中…');
-  try{
-    const data = await fetch(t.url, {cache:'no-cache'}).then(r=>{ if(!r.ok) throw new Error(r.status); return r.json(); });
-    const src = migrate(data.manuals[0]);
-    const idMap = {};
-    for(const [oldId, durl] of Object.entries(data.images || {})){
-      const nid = 'img_' + uid();
-      idMap[oldId] = nid;
-      await idbPut('images', {id: nid, blob: await dataURLToBlob(durl)});
-    }
-    current = {
-      id: 'man_' + uid(),
-      title: src.title,
-      places: (src.places||[]).map(p=> ({id:'pl_'+uid(), name:p.name})),
-      progress: {}, rounds: [],
-      steps: (src.steps||[]).map(st=> ({
-        id: 'st_'+uid(),
-        imageIds: (st.imageIds || []).map(id=> idMap[id]).filter(Boolean),
-        title: st.title, body: st.body, caution: st.caution,
-        placeIds: [], updatedAt: Date.now()
-      })),
-      createdAt: Date.now(), updatedAt: Date.now(), history: [], _isNew: true
-    };
-    setView('edit', {isNew:true});
-    toast('写真つきのひな形を読み込みました');
-  }catch(e){
-    toast('読み込めませんでした（通信を確認してください）');
-  }
-}
-
-function createFromTemplate(t){
-  const places = t.places.map(name=> ({id:'pl_'+uid(), name}));
-  const idOf = name => (places.find(p=> p.name === name) || {}).id;
-  current = {
-    id: 'man_' + uid(),
-    title: t.title,
-    places,
-    progress: {},
-    rounds: [],
-    steps: t.steps.map(st=> ({
-      id: 'st_'+uid(), imageIds: [],
-      title: st.t, body: st.b, caution: st.c,
-      placeIds: (st.p||[]).map(idOf).filter(Boolean),
-      updatedAt: Date.now()
-    })),
-    createdAt: Date.now(),
-    updatedAt: Date.now(),
-    history: [],
-    _isNew: true
-  };
-  setView('edit', {isNew:true});
-  toast(t.steps.length ? `ひな形を読み込みました（${t.steps.length}手順）` : 'ひな形を読み込みました');
-}
-
-/* =========================================================
    編集画面
    ========================================================= */
 const TITLE_CHIPS = ['停電時復旧マニュアル','給湯器の操作','日常点検','開店準備','清掃手順','緊急時の対応'];
 const PLACE_CHIPS = ['受付','コテージ','ヴィラ','カフェ','ドッグスパ','ドッグラン','753カフェ','管理棟','厨房'];
 
+let editStep = null;   // 編集中の手順ID（null のときは手順の一覧）
+
 function renderEdit(){
   const m = current;
-  const el = $('viewEdit');
+  if(editStep && !m.steps.some(s=> s.id === editStep)) editStep = null;
+  if(editStep) renderEditOne(); else renderEditList();
+}
+
+/* ===== ① 手順の一覧（タップして操作を選ぶ） ===== */
+function renderEditList(){
+  const m = current, el = $('viewEdit');
+  $('barSub').textContent = m._isNew ? '写真ごとに手順を書き足せます' : '手順をタップすると操作を選べます';
+
   el.innerHTML = `
     <div class="field">
       <label for="fTitle">マニュアルのタイトル <span class="muted tiny">（必須）</span></label>
@@ -1013,17 +894,144 @@ function renderEdit(){
         .map(c=>`<button class="chip" data-p="${c}">＋${c}</button>`).join('')}</div>
     </div>
 
-    <div class="sec-title">手順（写真 ${m.steps.length} 枚）</div>
-    ${m.steps.length ? '<div class="swipe-hint">← 手順を左にスライドすると「ゴミ箱へ」が出ます</div>' : ''}
-    ${m.steps.map((s,i)=>`
-     <div class="swipe" data-swipe="${s.id}">
-      <button class="swipe-del" data-del="${s.id}">🗑<br>ゴミ箱へ</button>
+    <div class="sec-title">手順　${m.steps.length}件</div>
+    ${m.steps.length
+      ? `<div class="tiny muted" style="text-align:center;margin:-4px 0 10px">手順をタップすると「編集・並べ替え・ゴミ箱へ」が選べます</div>
+         ${m.steps.map((s,i)=> stepRowHTML(m, s, i)).join('')}`
+      : `<div class="tiny muted" style="text-align:center;margin:6px 0 14px">まだ手順がありません。下のボタンから写真を追加してください。</div>`}
+
+    <button class="btn sub" id="addPhoto" style="margin-top:6px">＋　写真から手順を追加する</button>
+
+    ${(m.trash||[]).length ? foldBlock('🗑 ゴミ箱', `${m.trash.length}件`, `
+      <div class="tiny muted" style="margin:4px 0 2px">「戻す」で元の位置に復元できます。写真も残っています。</div>
+      ${m.trash.map(t=>`
+        <div class="trash-row">
+          <div class="trash-thumb">${(t.step.imageIds||[]).length
+            ? `<img data-img="${t.step.imageIds[0]}" alt="">` : '<span>📄</span>'}</div>
+          <div class="trash-body">
+            <div class="trash-t">${esc(t.step.title) || '（見出しなし）'}</div>
+            <div class="tiny muted">${fmtDateTime(t.at)} に移動${
+              (t.step.branches||[]).length ? `　枝${t.step.branches.length}` : ''}</div>
+            <div class="trash-acts">
+              <button class="btn sm sub" data-restore="${t.step.id}">↩ 戻す</button>
+              <button class="btn sm danger" data-purge="${t.step.id}">完全に削除</button>
+            </div>
+          </div>
+        </div>`).join('')}
+      <button class="btn sm ghost" data-emptytrash style="margin-top:12px">ゴミ箱を空にする</button>
+    `) : ''}
+
+    ${m._isNew ? '' : `
+      ${foldBlock('改訂履歴', `v${(m.history||[]).length}`,
+        `<div class="hist" style="border:none;padding:0">${historyHTML(m)}</div>`)}
+      <button class="btn danger" id="delMan" style="margin-top:18px">このマニュアルを削除</button>`}
+  `;
+  hydrateImages(el);
+  bindManualFields(el, m);
+
+  el.querySelectorAll('[data-open-step]').forEach(b=> b.onclick = ()=> stepActionSheet(b.dataset.openStep));
+  el.querySelectorAll('[data-restore]').forEach(b=> b.onclick = ()=> restoreFromTrash(b.dataset.restore));
+  el.querySelectorAll('[data-purge]').forEach(b=> b.onclick = ()=> purgeFromTrash(b.dataset.purge));
+  if(el.querySelector('[data-emptytrash]')) el.querySelector('[data-emptytrash]').onclick = emptyTrash;
+  $('addPhoto').onclick = ()=> pickPhotos('append');
+  if($('delMan')) $('delMan').onclick = ()=> deleteManual(m);
+
+  $('fab').innerHTML = `<button class="btn" id="saveBtn">✓　保存する</button>`;
+  $('saveBtn').onclick = saveManual;
+
+  if(m._isNew && !m.title) setTimeout(()=> $('fTitle').focus(), 250);
+}
+
+/* 一覧の1行 */
+function stepRowHTML(m, s, i){
+  const n = (s.imageIds||[]).length, br = (s.branches||[]).length;
+  const tags = (s.placeIds||[]).map(id=> (placesOf(m).find(p=> p.id===id)||{}).name).filter(Boolean);
+  return `
+    <button class="srow" data-open-step="${s.id}">
+      <span class="stepno">${i+1}</span>
+      <span class="srow-thumb">${n ? `<img data-img="${s.imageIds[0]}" alt="">` : '<span>📄</span>'}</span>
+      <span class="srow-body">
+        <span class="srow-t">${esc(s.title) || '（見出しなし）'}</span>
+        <span class="srow-meta">
+          ${n ? `写真${n}枚` : '写真なし'}${br ? `　🌿枝${br}` : ''}${
+            placesOf(m).length >= 2 ? `　${tags.length ? esc(tags.join('・')) : '全場所 共通'}` : ''}
+        </span>
+      </span>
+      <span class="srow-arrow">›</span>
+    </button>`;
+}
+
+/* 手順をタップしたときの操作メニュー */
+function stepActionSheet(sid){
+  const m = current;
+  const i = m.steps.findIndex(s=> s.id === sid);
+  if(i < 0) return;
+  const s = m.steps[i];
+  sheet(`
+    <h2>${esc(s.title) || '手順 ' + (i+1)}</h2>
+    <p class="lead">手順 ${i+1} / ${m.steps.length}　どうしますか？</p>
+    <button class="btn" data-a="edit" style="margin-bottom:10px">✎ この手順を編集する</button>
+    <div class="btnrow" style="margin-bottom:10px">
+      <button class="btn sub" data-a="up" ${i===0?'disabled':''}>↑ 上へ</button>
+      <button class="btn sub" data-a="down" ${i===m.steps.length-1?'disabled':''}>↓ 下へ</button>
+    </div>
+    <button class="btn danger" data-a="trash" style="margin-bottom:10px">🗑 ゴミ箱へ移動</button>
+    <button class="btn ghost" data-a="cancel">キャンセル</button>`,
+  (sh, close)=>{
+    sh.querySelectorAll('[data-a]').forEach(b=> b.onclick = ()=>{
+      const a = b.dataset.a;
+      if(a === 'up' || a === 'down'){
+        if(b.hasAttribute('disabled')) return;
+        close(); moveStep(sid, a === 'up' ? -1 : 1); return;
+      }
+      close();
+      if(a === 'edit'){ editStep = sid; renderEdit(); window.scrollTo(0,0); }
+      else if(a === 'trash') moveStepToTrash(sid);
+    });
+  });
+}
+
+/* ===== ② 1つの手順を編集（終わったら次の工程へ） ===== */
+function renderEditOne(){
+  const m = current, el = $('viewEdit');
+  const i = m.steps.findIndex(s=> s.id === editStep);
+  const s = m.steps[i];
+  const last = i === m.steps.length - 1;
+  $('barSub').textContent = `手順 ${i+1} / ${m.steps.length} を編集`;
+
+  el.innerHTML = `
+    <button class="crumb" id="toStepList">← 手順の一覧へ</button>
+    ${stepFormHTML(m, s, i)}
+    <div class="btnrow" style="margin-top:14px">
+      <button class="btn ghost" id="prevStep" ${i===0?'disabled':''}>← 前の手順</button>
+      <button class="btn ghost" id="trashStep" style="flex:none;width:64px" aria-label="ゴミ箱へ">🗑</button>
+    </div>`;
+  hydrateImages(el);
+  bindStepHandlers(el, m);
+
+  $('toStepList').onclick = ()=>{ editStep = null; renderEdit(); window.scrollTo(0,0); };
+  $('prevStep').onclick = ()=>{ if(i > 0){ editStep = m.steps[i-1].id; renderEdit(); window.scrollTo(0,0); } };
+  $('trashStep').onclick = ()=>{ editStep = null; moveStepToTrash(s.id); };
+
+  $('fab').innerHTML = `
+    <div class="btnrow">
+      <button class="btn" id="nextStep">${last ? '✓ 入力を終える（一覧へ）' : '次の手順へ進む →'}</button>
+    </div>`;
+  $('nextStep').onclick = ()=>{
+    if(last){ editStep = null; }
+    else editStep = m.steps[i+1].id;
+    renderEdit(); window.scrollTo(0,0);
+  };
+}
+
+/* 1つの手順の入力フォーム */
+function stepFormHTML(m, s, i){
+  return `
       <div class="step" data-step="${s.id}">
         <div class="step-head">
           <div class="stepno">${i+1}</div>
           <div class="sp"></div>
-          <button class="minibtn" data-up="${s.id}" ${i===0?'disabled style="opacity:.35"':''} aria-label="上へ">↑</button>
-          <button class="minibtn" data-down="${s.id}" ${i===m.steps.length-1?'disabled style="opacity:.35"':''} aria-label="下へ">↓</button>
+          <span class="tiny muted">手順 ${i+1} / ${m.steps.length}</span>
         </div>
         <div class="shots" data-n="${Math.min((s.imageIds||[]).length, 2)}">
           ${(s.imageIds||[]).length
@@ -1089,37 +1097,11 @@ function renderEdit(){
             <button class="btn sm sub" data-braddbr="${s.id}">＋ 枝を追加する</button>
           </div>
         </div>
-      </div>
-     </div>`).join('')}
+      </div>`;
+}
 
-    <button class="btn sub" id="addPhoto" style="margin-top:4px">＋　写真を追加する</button>
-
-    ${(m.trash||[]).length ? foldBlock('🗑 ゴミ箱', `${m.trash.length}件`, `
-      <div class="tiny muted" style="margin:4px 0 2px">「戻す」で元の位置に復元できます。写真も残っています。</div>
-      ${m.trash.map(t=>`
-        <div class="trash-row">
-          <div class="trash-thumb">${(t.step.imageIds||[]).length
-            ? `<img data-img="${t.step.imageIds[0]}" alt="">` : '<span>📄</span>'}</div>
-          <div class="trash-body">
-            <div class="trash-t">${esc(t.step.title) || '（見出しなし）'}</div>
-            <div class="tiny muted">${fmtDateTime(t.at)} に移動${
-              (t.step.branches||[]).length ? `　枝${t.step.branches.length}` : ''}</div>
-            <div class="trash-acts">
-              <button class="btn sm sub" data-restore="${t.step.id}">↩ 戻す</button>
-              <button class="btn sm danger" data-purge="${t.step.id}">完全に削除</button>
-            </div>
-          </div>
-        </div>`).join('')}
-      <button class="btn sm ghost" data-emptytrash style="margin-top:12px">ゴミ箱を空にする</button>
-    `) : ''}
-
-    ${m._isNew ? '' : `
-      ${foldBlock('改訂履歴', `v${(m.history||[]).length}`,
-        `<div class="hist" style="border:none;padding:0">${historyHTML(m)}</div>`)}
-      <button class="btn danger" id="delMan" style="margin-top:18px">このマニュアルを削除</button>`}
-  `;
-  hydrateImages(el);
-
+/* マニュアル全体（タイトル・場所）の入力 */
+function bindManualFields(el, m){
   $('fTitle').oninput = e=>{ m.title = e.target.value; dirty = true; };
   el.querySelectorAll('[data-t]').forEach(b=> b.onclick = ()=>{ m.title = b.dataset.t; $('fTitle').value = m.title; dirty = true; });
 
@@ -1141,6 +1123,17 @@ function renderEdit(){
     if(m.progress) delete m.progress[id];
     dirty = true; renderEdit();
   });
+}
+
+/* 手順フォームの入力・写真・枝 */
+function bindStepHandlers(el, m){
+  el.querySelectorAll('[data-f]').forEach(inp=>{
+    inp.oninput = e=>{
+      const s = m.steps.find(x=> x.id === inp.dataset.id);
+      if(!s) return;
+      s[inp.dataset.f] = e.target.value; s.updatedAt = Date.now(); dirty = true;
+    };
+  });
   el.querySelectorAll('[data-sp]').forEach(b=> b.onclick = ()=>{
     const s = m.steps.find(x=> x.id === b.dataset.sp);
     if(!s) return;
@@ -1155,24 +1148,16 @@ function renderEdit(){
       c.classList.toggle('on', cp ? s.placeIds.includes(cp) : s.placeIds.length === 0);
     });
   });
-
-  el.querySelectorAll('[data-f]').forEach(inp=>{
-    inp.oninput = e=>{
-      const s = m.steps.find(x=> x.id === inp.dataset.id);
-      if(!s) return;
-      s[inp.dataset.f] = e.target.value; s.updatedAt = Date.now(); dirty = true;
-    };
+  el.querySelectorAll('[data-addimg]').forEach(b=> b.onclick = ()=> pickPhotos({addTo: b.dataset.addimg}));
+  el.querySelectorAll('[data-rmimg]').forEach(b=> b.onclick = ()=>{
+    const [sid, iid] = b.dataset.rmimg.split('|');
+    const st = m.steps.find(x=> x.id === sid);
+    if(!st) return;
+    st.imageIds = (st.imageIds||[]).filter(x=> x !== iid);
+    st.updatedAt = Date.now(); dirty = true; renderEdit();
   });
-  el.querySelectorAll('[data-up]').forEach(b=> b.onclick = ()=> moveStep(b.dataset.up, -1));
-  el.querySelectorAll('[data-down]').forEach(b=> b.onclick = ()=> moveStep(b.dataset.down, 1));
-  el.querySelectorAll('[data-del]').forEach(b=> b.onclick = ()=> moveStepToTrash(b.dataset.del));
-  el.querySelectorAll('.swipe').forEach(initSwipe);
 
   /* --- 枝（追加事項）--- */
-  el.querySelectorAll('[data-restore]').forEach(b=> b.onclick = ()=> restoreFromTrash(b.dataset.restore));
-  el.querySelectorAll('[data-purge]').forEach(b=> b.onclick = ()=> purgeFromTrash(b.dataset.purge));
-  if(el.querySelector('[data-emptytrash]')) el.querySelector('[data-emptytrash]').onclick = emptyTrash;
-
   el.querySelectorAll('[data-braddbr]').forEach(b=> b.onclick = ()=>{
     const st = m.steps.find(x=> x.id === b.dataset.braddbr);
     if(!st) return;
@@ -1210,52 +1195,8 @@ function renderEdit(){
     br.imageIds = (br.imageIds||[]).filter(x=> x !== iid);
     st.updatedAt = Date.now(); dirty = true; renderEdit();
   });
-  el.querySelectorAll('[data-addimg]').forEach(b=> b.onclick = ()=> pickPhotos({addTo: b.dataset.addimg}));
-  el.querySelectorAll('[data-rmimg]').forEach(b=> b.onclick = ()=>{
-    const [sid, iid] = b.dataset.rmimg.split('|');
-    const st = current.steps.find(x=> x.id === sid);
-    if(!st) return;
-    st.imageIds = (st.imageIds||[]).filter(x=> x !== iid);
-    st.updatedAt = Date.now(); dirty = true; renderEdit();
-  });
-  $('addPhoto').onclick = ()=> pickPhotos('append');
-  if($('delMan')) $('delMan').onclick = ()=> deleteManual(m);
-
-  $('fab').innerHTML = `<button class="btn" id="saveBtn">✓　保存する</button>`;
-  $('saveBtn').onclick = saveManual;
-
-  if(m._isNew && !m.title) setTimeout(()=> $('fTitle').focus(), 250);
 }
-/* 手順カードを左にスライドすると削除ボタンが出る */
-function initSwipe(box){
-  const card = box.querySelector('.step');
-  let x0 = null, dx = 0, base = 0, dragging = false;
-  const OPEN = -96;
-  card.addEventListener('pointerdown', e=>{
-    if(e.target.closest('input, textarea, button, .chip')) return;
-    x0 = e.clientX; base = box.classList.contains('open') ? OPEN : 0;
-    dragging = true; dx = base;
-    card.style.transition = 'none';
-  });
-  card.addEventListener('pointermove', e=>{
-    if(!dragging) return;
-    dx = Math.max(OPEN, Math.min(0, base + (e.clientX - x0)));
-    card.style.transform = `translateX(${dx}px)`;
-  });
-  const end = ()=>{
-    if(!dragging) return;
-    dragging = false;
-    card.style.transition = '';
-    card.style.transform = '';
-    box.classList.toggle('open', dx < OPEN / 2);
-    // 他のカードは閉じる
-    if(box.classList.contains('open'))
-      document.querySelectorAll('.swipe.open').forEach(o=>{ if(o !== box) o.classList.remove('open'); });
-  };
-  card.addEventListener('pointerup', end);
-  card.addEventListener('pointercancel', end);
-  card.addEventListener('pointerleave', end);
-}
+
 /* 削除＝ゴミ箱へ移動。あとから戻せます */
 function moveStepToTrash(id){
   const i = current.steps.findIndex(s=> s.id === id);
